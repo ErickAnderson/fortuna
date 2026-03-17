@@ -22,6 +22,12 @@ if "current_page" not in st.session_state:
 # Custom CSS
 st.markdown("""
 <style>
+    /* Dropdowns — pointer cursor */
+    [data-baseweb="select"],
+    [data-baseweb="select"] * {
+        cursor: pointer !important;
+    }
+
     /* Gold accent headers */
     h1, h2, h3 { color: #D4AF37 !important; }
 
