@@ -60,7 +60,15 @@ def render():
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Invested", f"${total_cost:,.2f}")
     col2.metric("Current Value", f"${total_value:,.2f}")
-    col3.metric("Total P&L", f"${total_pnl:,.2f}", f"{total_pnl_pct:+.2f}%")
+    pnl_color = "#00C853" if total_pnl >= 0 else "#FF5252"
+    col3.markdown(
+        f'<div style="background-color:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:12px;">'
+        f'<p style="font-size:0.85rem; color:#AAAAAA; margin:0;">Total P&L</p>'
+        f'<p style="font-size:1.8rem; font-weight:600; margin:0; color:#FAFAFA;">${total_pnl:,.2f}'
+        f'<span style="font-size:0.85rem; color:{pnl_color}; margin-left:8px;">{total_pnl_pct:+.2f}%</span></p>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
     col4.metric("Total Fees", f"${total_fees:,.2f}")
 
     st.markdown("---")
@@ -105,13 +113,13 @@ def render():
         "Current %": "{:.1f}%",
         "Diff %": "{:+.1f}%",
         "Qty": "{:.0f}",
-        "Avg Price": "${:.4f}",
-        "Price": lambda x: f"${x:.2f}" if x is not None else "N/A",
+        "Avg Price": "${:,.2f}",
+        "Price": lambda x: f"${x:,.2f}" if x is not None else "N/A",
         "Cost": "${:,.2f}",
         "Value": "${:,.2f}",
         "P&L %": "{:+.2f}%",
         "P&L $": "${:+,.2f}",
-        "Fees": "${:.2f}",
+        "Fees": "${:,.2f}",
         "Div Yield %": lambda x: f"{x:.2f}%" if x is not None else "N/A",
     })
 

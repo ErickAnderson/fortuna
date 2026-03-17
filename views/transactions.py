@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date, datetime
 import database as db
+import market_data as md
 
 
 def render():
@@ -18,14 +19,18 @@ def render():
     ticker_map = {p["ticker"]: p["id"] for p in positions}
     broker_map = {b["name"]: b for b in brokers}
 
+    # Get portfolio summary for sell validation
+    portfolio = db.get_portfolio_summary()
+    holdings = {p["ticker"]: p["qty"] for p in portfolio}
+
     # Transaction form
     tab_buy, tab_sell = st.tabs(["Buy", "Sell"])
 
     with tab_buy:
-        _render_transaction_form("buy", positions, brokers, ticker_map, broker_map)
+        _render_buy_form(positions, brokers, ticker_map, broker_map)
 
     with tab_sell:
-        _render_transaction_form("sell", positions, brokers, ticker_map, broker_map)
+        _render_sell_form(positions, brokers, ticker_map, broker_map, holdings)
 
     st.markdown("---")
 
@@ -61,15 +66,15 @@ def render():
     )
     display_df.columns = ["Date", "Type", "Ticker", "Qty", "Price", "Fee", "Broker", "Total"]
 
-    # Selectable dataframe — click a row to select it
+    # Selectable dataframe
     event = st.dataframe(
         display_df.style.map(
             lambda val: "color: #00C853" if val == "buy" else ("color: #FF5252" if val == "sell" else ""),
             subset=["Type"],
         ).format({
-            "Qty": "{:.0f}",
-            "Price": "${:.2f}",
-            "Fee": "${:.2f}",
+            "Qty": "{:,.0f}",
+            "Price": "${:,.2f}",
+            "Fee": "${:,.2f}",
             "Total": "${:,.2f}",
         }),
         use_container_width=True,
@@ -89,7 +94,7 @@ def render():
         st.markdown(
             f"**Selected:** #{txn['id']} — {txn['date']} | "
             f"{txn['type'].upper()} | {txn['ticker']} | "
-            f"{txn['qty']:.0f}x ${txn['price']:.2f}"
+            f"{txn['qty']:,.0f}x ${txn['price']:,.2f}"
         )
 
         col_edit, col_delete, col_spacer = st.columns([1, 1, 4])
@@ -110,7 +115,7 @@ def render():
             st.warning(
                 f"Are you sure you want to delete: "
                 f"{txn['date']} | {txn['type'].upper()} | {txn['ticker']} | "
-                f"{txn['qty']:.0f}x ${txn['price']:.2f}?"
+                f"{txn['qty']:,.0f}x ${txn['price']:,.2f}?"
             )
             col_yes, col_no, _ = st.columns([1, 1, 4])
             with col_yes:
@@ -174,10 +179,6 @@ def _render_edit_form(txn: dict, brokers: list, broker_map: dict):
             key="edit_broker",
         )
 
-        default_fee = 0.0
-        if edit_broker != "None" and edit_broker in broker_map:
-            default_fee = broker_map[edit_broker]["default_fee"]
-
         edit_fee = st.number_input(
             "Fee ($)",
             min_value=0.0,
@@ -210,48 +211,52 @@ def _render_edit_form(txn: dict, brokers: list, broker_map: dict):
             st.rerun()
 
 
-def _render_transaction_form(txn_type: str, positions, brokers, ticker_map, broker_map):
-    prefix = txn_type
-
+def _render_buy_form(positions, brokers, ticker_map, broker_map):
+    """Buy form — all tickers available, defaults to market price."""
     col1, col2 = st.columns(2)
 
     with col1:
         ticker = st.selectbox(
             "Ticker",
             options=[p["ticker"] for p in positions],
-            key=f"{prefix}_ticker",
+            key="buy_ticker",
         )
         qty = st.number_input(
             "Quantity",
             min_value=1,
             value=1,
             step=1,
-            key=f"{prefix}_qty",
+            key="buy_qty",
         )
         txn_date = st.date_input(
             "Date",
             value=date.today(),
-            key=f"{prefix}_date",
+            key="buy_date",
         )
+
+    # Get default price from market
+    default_price = md.get_current_price(ticker) if ticker else 1.00
+    if default_price is None:
+        default_price = 1.00
 
     with col2:
         price = st.number_input(
             "Price per share ($)",
             min_value=0.01,
-            value=1.00,
+            value=default_price,
             step=0.01,
             format="%.2f",
-            key=f"{prefix}_price",
+            key="buy_price",
         )
 
         broker_names = [b["name"] for b in brokers]
         selected_broker = st.selectbox(
             "Broker",
             options=["None"] + broker_names,
-            key=f"{prefix}_broker",
+            index=1 if broker_names else 0,
+            key="buy_broker",
         )
 
-        # Pre-populate fee from broker default
         default_fee = 0.0
         if selected_broker != "None" and selected_broker in broker_map:
             default_fee = broker_map[selected_broker]["default_fee"]
@@ -262,28 +267,115 @@ def _render_transaction_form(txn_type: str, positions, brokers, ticker_map, brok
             value=default_fee,
             step=0.01,
             format="%.2f",
-            key=f"{prefix}_fee",
+            key="buy_fee",
         )
 
-    # Summary
-    if txn_type == "buy":
-        total = qty * price + fee
-    else:
-        total = qty * price - fee
+    total = qty * price + fee
     st.markdown(f"**Total: ${total:,.2f}**")
 
-    if st.button(f"Submit {txn_type.title()}", key=f"{prefix}_submit", type="primary"):
+    if st.button("Submit Buy", key="buy_submit", type="primary"):
         position_id = ticker_map[ticker]
         broker_id = broker_map[selected_broker]["id"] if selected_broker != "None" else None
 
         db.add_transaction(
             position_id=position_id,
-            txn_type=txn_type,
+            txn_type="buy",
             txn_date=str(txn_date),
             qty=qty,
             price=price,
             fee=fee,
             broker_id=broker_id,
         )
-        st.success(f"{txn_type.title()} recorded: {qty}x {ticker} @ ${price:.2f}")
+        st.success(f"Buy recorded: {qty:,}x {ticker} @ ${price:,.2f}")
+        st.rerun()
+
+
+def _render_sell_form(positions, brokers, ticker_map, broker_map, holdings):
+    """Sell form — only tickers with holdings, max qty enforced."""
+    # Filter to only tickers with qty > 0
+    sellable = [p for p in positions if holdings.get(p["ticker"], 0) > 0]
+
+    if not sellable:
+        st.info("No holdings to sell. Buy some shares first.")
+        return
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        ticker = st.selectbox(
+            "Ticker",
+            options=[p["ticker"] for p in sellable],
+            key="sell_ticker",
+        )
+
+        max_qty = int(holdings.get(ticker, 0))
+        st.caption(f"Available: {max_qty:,} shares")
+
+        qty = st.number_input(
+            "Quantity",
+            min_value=1,
+            max_value=max_qty,
+            value=min(1, max_qty),
+            step=1,
+            key="sell_qty",
+        )
+        txn_date = st.date_input(
+            "Date",
+            value=date.today(),
+            key="sell_date",
+        )
+
+    # Get default price from market
+    default_price = md.get_current_price(ticker) if ticker else 1.00
+    if default_price is None:
+        default_price = 1.00
+
+    with col2:
+        price = st.number_input(
+            "Price per share ($)",
+            min_value=0.01,
+            value=default_price,
+            step=0.01,
+            format="%.2f",
+            key="sell_price",
+        )
+
+        broker_names = [b["name"] for b in brokers]
+        selected_broker = st.selectbox(
+            "Broker",
+            options=["None"] + broker_names,
+            index=1 if broker_names else 0,
+            key="sell_broker",
+        )
+
+        default_fee = 0.0
+        if selected_broker != "None" and selected_broker in broker_map:
+            default_fee = broker_map[selected_broker]["default_fee"]
+
+        fee = st.number_input(
+            "Fee ($)",
+            min_value=0.0,
+            value=default_fee,
+            step=0.01,
+            format="%.2f",
+            key="sell_fee",
+        )
+
+    total = qty * price - fee
+    st.markdown(f"**Total: ${total:,.2f}**")
+
+    if st.button("Submit Sell", key="sell_submit", type="primary"):
+        position_id = ticker_map[ticker]
+        broker_id = broker_map[selected_broker]["id"] if selected_broker != "None" else None
+
+        db.add_transaction(
+            position_id=position_id,
+            txn_type="sell",
+            txn_date=str(txn_date),
+            qty=qty,
+            price=price,
+            fee=fee,
+            broker_id=broker_id,
+        )
+        st.success(f"Sell recorded: {qty:,}x {ticker} @ ${price:,.2f}")
         st.rerun()
