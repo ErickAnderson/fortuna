@@ -8,9 +8,10 @@ import market_data as md
 
 def _get_first_transaction_date(ticker: str) -> pd.Timestamp | None:
     """Get the earliest transaction date for a ticker."""
-    txns = db.get_transactions(
-        db.get_position_by_ticker(ticker)["id"]
-    ) if db.get_position_by_ticker(ticker) else []
+    pos = db.get_position_by_ticker(ticker)
+    if not pos:
+        return None
+    txns = db.get_transactions(pos["id"])
     if not txns:
         return None
     dates = [pd.Timestamp(t["date"]) for t in txns]
@@ -32,7 +33,8 @@ def render():
 
     # Fetch dividend data for all positions
     dividend_data = []
-    div_histories = {}
+    div_full_histories = {}   # Full history for chart display
+    div_owned_histories = {}  # Only since first transaction for calculations
     total_dividends_received = 0.0
 
     with st.spinner("Fetching dividend data..."):
@@ -42,27 +44,33 @@ def render():
             divs = divs_df["Dividend"] if not divs_df.empty else pd.Series(dtype=float)
             div_yield = md.get_dividend_yield(ticker)
 
-            # Filter dividends to only those after first transaction
+            # Full history for chart
+            div_full_histories[ticker] = divs
+
+            # Filter to only dividends since first transaction (for portfolio value)
             first_txn_date = _get_first_transaction_date(ticker)
             if first_txn_date is not None and not divs.empty:
+                cutoff = first_txn_date
                 if divs.index.tz is not None:
-                    first_txn_date = first_txn_date.tz_localize(divs.index.tz)
-                divs = divs[divs.index >= first_txn_date]
+                    cutoff = cutoff.tz_localize(divs.index.tz)
+                owned_divs = divs[divs.index >= cutoff]
+            else:
+                owned_divs = divs
 
-            div_histories[ticker] = divs
+            div_owned_histories[ticker] = owned_divs
 
-            # Total dividends received (only since we held the stock)
-            total_divs = divs.sum() * pos["qty"] if not divs.empty else 0.0
+            # Total dividends received (only since ownership)
+            total_divs = owned_divs.sum() * pos["qty"] if not owned_divs.empty else 0.0
             total_dividends_received += total_divs
 
-            # Latest dividend
-            latest_div = float(divs.iloc[-1]) if not divs.empty else 0.0
-            latest_date = str(divs.index[-1].date()) if not divs.empty else "N/A"
+            # Latest dividend (from owned period)
+            latest_div = float(owned_divs.iloc[-1]) if not owned_divs.empty else 0.0
+            latest_date = str(owned_divs.index[-1].date()) if not owned_divs.empty else "N/A"
 
             # Trailing 12-month dividends
             if not divs.empty:
-                cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
-                annual_div = float(divs[divs.index >= cutoff].sum())
+                year_cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
+                annual_div = float(divs[divs.index >= year_cutoff].sum())
             else:
                 annual_div = 0.0
 
@@ -76,6 +84,7 @@ def render():
                 "Annual Income": f"${annual_div * pos['qty']:,.2f}",
                 "Total Received": f"${total_divs:,.2f}",
                 "_annual_income": annual_div * pos["qty"],
+                "_first_txn": first_txn_date,
             })
 
     # Top metrics
@@ -99,7 +108,7 @@ def render():
 
     st.markdown("---")
 
-    # Per-ticker dividend history
+    # Per-ticker dividend history (full history shown, owned period highlighted)
     st.markdown("### Dividend History")
     selected = st.selectbox(
         "Select ticker",
@@ -108,23 +117,44 @@ def render():
     )
 
     if selected:
-        divs = div_histories.get(selected, pd.Series(dtype=float))
+        full_divs = div_full_histories.get(selected, pd.Series(dtype=float))
         qty = next(d["Qty"] for d in dividend_data if d["Ticker"] == selected)
+        first_txn = next(d["_first_txn"] for d in dividend_data if d["Ticker"] == selected)
 
-        if divs.empty:
-            st.info(f"No dividends received since first purchase of {selected}")
+        if full_divs.empty:
+            st.info(f"No dividend history for {selected}")
         else:
-            # Chart
+            # Chart — full history
             chart_data = pd.DataFrame({
-                "Date": divs.index,
-                "Dividend": divs.values,
+                "Date": full_divs.index,
+                "Dividend": full_divs.values,
             }).set_index("Date")
             st.bar_chart(chart_data)
 
-            # Table
-            hist_df = pd.DataFrame({
-                "Date": [d.date() for d in divs.index],
-                "Dividend/Share": [f"${v:.4f}" for v in divs.values],
-                "Income": [f"${v * qty:,.2f}" for v in divs.values],
-            })
-            st.dataframe(hist_df, use_container_width=True, hide_index=True)
+            # Table — full history with "Owned" indicator
+            owned_cutoff = first_txn
+            if owned_cutoff is not None and full_divs.index.tz is not None:
+                owned_cutoff = owned_cutoff.tz_localize(full_divs.index.tz)
+
+            hist_rows = []
+            for d_date, d_val in zip(full_divs.index, full_divs.values):
+                is_owned = owned_cutoff is not None and d_date >= owned_cutoff
+                hist_rows.append({
+                    "Date": d_date.date(),
+                    "Dividend/Share": f"${d_val:.4f}",
+                    "Income": f"${d_val * qty:,.2f}" if is_owned else "—",
+                    "Status": "Received" if is_owned else "Pre-ownership",
+                })
+
+            hist_df = pd.DataFrame(hist_rows)
+            st.dataframe(
+                hist_df.style.map(
+                    lambda val: "color: #555555" if val == "Pre-ownership" else "",
+                    subset=["Status"],
+                ).map(
+                    lambda val: "color: #555555" if val == "—" else "",
+                    subset=["Income"],
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )

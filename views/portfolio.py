@@ -61,11 +61,15 @@ def render():
     col1.metric("Total Invested", f"${total_cost:,.2f}")
     col2.metric("Current Value", f"${total_value:,.2f}")
     pnl_color = "#00C853" if total_pnl >= 0 else "#FF5252"
+    pnl_bg = "rgba(0,200,83,0.15)" if total_pnl >= 0 else "rgba(255,82,82,0.15)"
+    pnl_arrow = "▲" if total_pnl >= 0 else "▼"
     col3.markdown(
-        f'<div style="background-color:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:12px;">'
-        f'<p style="font-size:0.85rem; color:#AAAAAA; margin:0;">Total P&L</p>'
-        f'<p style="font-size:1.8rem; font-weight:600; margin:0; color:#FAFAFA;">${total_pnl:,.2f}'
-        f'<span style="font-size:0.85rem; color:{pnl_color}; margin-left:8px;">{total_pnl_pct:+.2f}%</span></p>'
+        f'<div style="background-color:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">'
+        f'<p style="font-size:0.875rem; color:#AAAAAA; margin:0 0 4px 0; font-weight:400;">Total P&L</p>'
+        f'<p style="font-size:2rem; font-weight:700; margin:0; line-height:1.2; color:#FAFAFA;">${total_pnl:,.2f}</p>'
+        f'<span style="display:inline-block; margin-top:4px; padding:2px 8px; border-radius:12px; '
+        f'font-size:0.8rem; color:{pnl_color}; background:{pnl_bg};">'
+        f'{pnl_arrow} {total_pnl_pct:+.2f}%</span>'
         f'</div>',
         unsafe_allow_html=True,
     )
