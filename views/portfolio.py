@@ -57,23 +57,36 @@ def render():
     total_pnl = total_value - total_cost
     total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0.0
 
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Invested", f"${total_cost:,.2f}")
-    col2.metric("Current Value", f"${total_value:,.2f}")
     pnl_color = "#00C853" if total_pnl >= 0 else "#FF5252"
     pnl_bg = "rgba(0,200,83,0.15)" if total_pnl >= 0 else "rgba(255,82,82,0.15)"
     pnl_arrow = "▲" if total_pnl >= 0 else "▼"
-    col3.markdown(
-        f'<div style="background-color:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">'
-        f'<p style="font-size:0.875rem; color:#AAAAAA; margin:0 0 4px 0; font-weight:400;">Total P&L</p>'
-        f'<p style="font-size:2rem; font-weight:700; margin:0; line-height:1.2; color:#FAFAFA;">${total_pnl:,.2f}</p>'
-        f'<span style="display:inline-block; margin-top:4px; padding:2px 8px; border-radius:12px; '
-        f'font-size:0.8rem; color:{pnl_color}; background:{pnl_bg};">'
-        f'{pnl_arrow} {total_pnl_pct:+.2f}%</span>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-    col4.metric("Total Fees", f"${total_fees:,.2f}")
+
+    st.markdown(f"""
+    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;">
+        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
+            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Total Invested</p>
+            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">${total_cost:,.2f}</p>
+        </div>
+        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
+            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Current Value</p>
+            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">${total_value:,.2f}</p>
+        </div>
+        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
+            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Total P&L</p>
+            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">
+                ${total_pnl:,.2f}
+                <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px;
+                    color:{pnl_color}; background:{pnl_bg}; margin-left:6px; vertical-align:middle;">
+                    {pnl_arrow} {total_pnl_pct:+.2f}%
+                </span>
+            </p>
+        </div>
+        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
+            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Total Fees</p>
+            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">${total_fees:,.2f}</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.markdown("---")
 
