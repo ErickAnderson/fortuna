@@ -182,6 +182,23 @@ def delete_transaction(txn_id: int):
         conn.commit()
 
 
+def update_transaction(
+    txn_id: int,
+    txn_date: str,
+    qty: float,
+    price: float,
+    fee: float,
+    broker_id: int | None,
+):
+    with closing(get_connection()) as conn:
+        conn.execute(
+            """UPDATE transactions SET date = ?, qty = ?, price = ?, fee = ?, broker_id = ?
+               WHERE id = ?""",
+            (txn_date, qty, price, fee, broker_id, txn_id),
+        )
+        conn.commit()
+
+
 # --- Analysis CRUD ---
 
 def get_analyses(position_id: int | None = None) -> list[dict]:
