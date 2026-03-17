@@ -58,7 +58,7 @@ st.markdown("""
         background: transparent !important;
         border: none !important;
         border-left: 3px solid transparent !important;
-        border-radius: 0 6px 6px 0 !important;
+        border-radius: 8px !important;
         color: #888888 !important;
         text-align: left !important;
         padding: 10px 16px !important;
