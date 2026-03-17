@@ -1,7 +1,7 @@
 """Fortuna — AI Analysis page with charts, prompt generation, and timeline."""
 
 import streamlit as st
-import pandas as pd
+import streamlit.components.v1 as components
 import json
 from datetime import datetime
 import database as db
@@ -87,7 +87,8 @@ def _render_analysis(ticker: str, positions: list[dict]):
     api_configured = ai.is_api_configured()
 
     if api_configured:
-        st.success(f"AI API configured ({ai.AI_PROVIDER}). Analysis will run automatically.")
+        provider, _, _ = ai._get_config()
+        st.success(f"AI API configured ({provider}). Analysis will run automatically.")
     else:
         st.info("No AI API configured. Using manual prompt mode — copy the prompt to your Claude/ChatGPT session.")
 
@@ -139,10 +140,9 @@ def _run_analysis(ticker: str, positions: list[dict], api_configured: bool):
         except Exception:
             pass
 
-        # Previous analyses
-        previous = db.get_analyses(
-            next((p["id"] for p in positions if p["ticker"] == ticker), None)
-        )
+        # Previous analyses (guard against None position_id)
+        pos_id = next((p["id"] for p in positions if p["ticker"] == ticker), None)
+        previous = db.get_analyses(pos_id) if pos_id is not None else []
 
     # Build prompt
     system_prompt, user_prompt = ai.build_analysis_prompt(
@@ -185,12 +185,20 @@ def _render_manual_prompt(system_prompt: str, user_prompt: str, ticker: str, pos
 
     st.code(full_prompt, language="text")
 
+    # Use st.components.v1.html for actual clipboard functionality
     if st.button("Copy to Clipboard", key="copy_prompt"):
-        st.write(
-            f'<script>navigator.clipboard.writeText({json.dumps(full_prompt)})</script>',
-            unsafe_allow_html=True,
+        escaped = json.dumps(full_prompt)
+        components.html(
+            f"""<script>
+            navigator.clipboard.writeText({escaped}).then(
+                () => window.parent.document.querySelector('[data-testid="stNotification"]'),
+                (err) => console.error('Copy failed:', err)
+            );
+            </script>
+            <p style="color: #00C853; font-family: sans-serif;">Copied to clipboard!</p>
+            """,
+            height=30,
         )
-        st.success("Copied!")
 
     st.markdown("---")
     st.markdown("### Paste AI Response")
@@ -211,6 +219,16 @@ def _render_manual_prompt(system_prompt: str, user_prompt: str, ticker: str, pos
             st.error("Invalid JSON. Make sure to paste the complete JSON response.")
 
 
+def _normalize_verdict(verdict: str) -> str:
+    """Normalize verdict to BUY, SELL, or HOLD."""
+    v = verdict.upper().strip()
+    if "BUY" in v:
+        return "BUY"
+    elif "SELL" in v:
+        return "SELL"
+    return "HOLD"
+
+
 def _save_and_display_analysis(ticker: str, positions: list[dict], result: dict):
     """Save analysis to DB and display it."""
     position = next((p for p in positions if p["ticker"] == ticker), None)
@@ -218,15 +236,22 @@ def _save_and_display_analysis(ticker: str, positions: list[dict], result: dict)
         st.error(f"Position {ticker} not found.")
         return
 
-    verdict = result.get("verdict", "HOLD")
-    price_target = result.get("price_target")
+    verdict = _normalize_verdict(result.get("verdict", "HOLD"))
+
+    # Safely parse price_target
+    raw_target = result.get("price_target")
+    try:
+        price_target = float(raw_target) if raw_target is not None else None
+    except (ValueError, TypeError):
+        price_target = None
+
     summary = result.get("summary", "")
     full_analysis = result.get("full_analysis", "")
 
     db.add_analysis(
         position_id=position["id"],
         verdict=verdict,
-        price_target=float(price_target) if price_target else None,
+        price_target=price_target,
         summary=summary,
         full_analysis=full_analysis,
     )
@@ -241,11 +266,13 @@ def _display_analysis_result(verdict: str, price_target, summary: str, full_anal
     verdict_colors = {"BUY": "#00C853", "SELL": "#FF5252", "HOLD": "#FFA726"}
     color = verdict_colors.get(verdict.upper(), "#FAFAFA")
 
+    target_text = f"${price_target:.2f}" if price_target is not None else "N/A"
+
     st.markdown(
         f'<div style="text-align:center; padding:20px; margin:10px 0; '
         f'border:2px solid {color}; border-radius:12px;">'
         f'<h1 style="color:{color} !important; margin:0;">{verdict.upper()}</h1>'
-        f'<p style="font-size:1.2em; color:#FAFAFA;">Target: ${price_target:.2f}</p>'
+        f'<p style="font-size:1.2em; color:#FAFAFA;">Target: {target_text}</p>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -274,15 +301,11 @@ def _render_timeline(ticker: str):
     for analysis in analyses:
         date_str = analysis["date"][:10]
         verdict = analysis.get("verdict", "N/A")
-        verdict_colors = {"BUY": "#00C853", "SELL": "#FF5252", "HOLD": "#FFA726"}
-        color = verdict_colors.get(verdict.upper(), "#FAFAFA") if verdict else "#FAFAFA"
+        target = analysis.get("price_target")
+        target_str = f"${target:.2f}" if target is not None else "N/A"
+        score_str = f" | Score: {analysis['accuracy_score']}/10" if analysis.get("accuracy_score") is not None else ""
 
-        with st.expander(
-            f"**{date_str}** — "
-            f":{verdict.upper() if verdict else 'N/A'}: "
-            f"(Target: ${analysis.get('price_target', 'N/A')})"
-            + (f" — Score: {analysis['accuracy_score']}/10" if analysis.get("accuracy_score") is not None else ""),
-        ):
+        with st.expander(f"{date_str} — [{verdict}] Target: {target_str}{score_str}"):
             if analysis.get("summary"):
                 st.markdown(f"**Summary:** {analysis['summary']}")
 
@@ -313,4 +336,3 @@ def _render_timeline(ticker: str):
             if st.button("Save Score", key=f"save_score_{analysis['id']}"):
                 db.update_analysis_accuracy(analysis["id"], score, notes)
                 st.success("Score saved")
-                st.rerun()

@@ -17,12 +17,12 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["MA200"] = df["Close"].rolling(window=200).mean()
     df["MA20"] = df["Close"].rolling(window=20).mean()
 
-    # RSI (14-period)
+    # RSI (14-period, Wilder's smoothing)
     delta = df["Close"].diff()
-    gain = delta.where(delta > 0, 0.0).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0.0)).rolling(window=14).mean()
-    rs = gain / loss
-    df["RSI"] = 100 - (100 / (1 + rs))
+    gain = delta.where(delta > 0, 0.0).ewm(com=13, adjust=False).mean()
+    loss = (-delta.where(delta < 0, 0.0)).ewm(com=13, adjust=False).mean()
+    rs = gain / loss.replace(0, float('nan'))
+    df["RSI"] = (100 - (100 / (1 + rs))).fillna(100)
 
     # MACD
     ema12 = df["Close"].ewm(span=12, adjust=False).mean()
@@ -77,15 +77,16 @@ def get_indicator_summary(df: pd.DataFrame) -> dict:
             summary["RSI_signal"] = "neutral"
 
     # MACD crossover
-    if pd.notna(latest.get("MACD")) and pd.notna(prev.get("MACD")):
-        if latest["MACD"] > latest["MACD_Signal"] and prev["MACD"] <= prev["MACD_Signal"]:
-            summary["MACD_signal"] = "bullish crossover"
-        elif latest["MACD"] < latest["MACD_Signal"] and prev["MACD"] >= prev["MACD_Signal"]:
-            summary["MACD_signal"] = "bearish crossover"
-        elif latest["MACD"] > latest["MACD_Signal"]:
-            summary["MACD_signal"] = "bullish"
-        else:
-            summary["MACD_signal"] = "bearish"
+    if pd.notna(latest.get("MACD")) and pd.notna(latest.get("MACD_Signal")):
+        if pd.notna(prev.get("MACD")) and pd.notna(prev.get("MACD_Signal")):
+            if latest["MACD"] > latest["MACD_Signal"] and prev["MACD"] <= prev["MACD_Signal"]:
+                summary["MACD_signal"] = "bullish crossover"
+            elif latest["MACD"] < latest["MACD_Signal"] and prev["MACD"] >= prev["MACD_Signal"]:
+                summary["MACD_signal"] = "bearish crossover"
+            elif latest["MACD"] > latest["MACD_Signal"]:
+                summary["MACD_signal"] = "bullish"
+            else:
+                summary["MACD_signal"] = "bearish"
 
     # 52-week range position
     high_52w = df["High"].tail(252).max() if len(df) >= 252 else df["High"].max()
@@ -111,15 +112,22 @@ def get_price_summary(df: pd.DataFrame) -> dict:
         return {}
 
     latest = df.iloc[-1]
+
+    def safe_pct_change(current, past):
+        if pd.notna(past) and past != 0:
+            return f"{((current / past - 1) * 100):.2f}%"
+        return "N/A"
+
+    close = df["Close"]
     return {
         "open": round(float(latest["Open"]), 2),
         "high": round(float(latest["High"]), 2),
         "low": round(float(latest["Low"]), 2),
         "close": round(float(latest["Close"]), 2),
         "volume": int(latest.get("Volume", 0)),
-        "5d_change": f"{((df['Close'].iloc[-1] / df['Close'].iloc[-5] - 1) * 100):.2f}%" if len(df) >= 5 else "N/A",
-        "20d_change": f"{((df['Close'].iloc[-1] / df['Close'].iloc[-20] - 1) * 100):.2f}%" if len(df) >= 20 else "N/A",
-        "60d_change": f"{((df['Close'].iloc[-1] / df['Close'].iloc[-60] - 1) * 100):.2f}%" if len(df) >= 60 else "N/A",
+        "5d_change": safe_pct_change(close.iloc[-1], close.iloc[-5]) if len(df) >= 5 else "N/A",
+        "20d_change": safe_pct_change(close.iloc[-1], close.iloc[-20]) if len(df) >= 20 else "N/A",
+        "60d_change": safe_pct_change(close.iloc[-1], close.iloc[-60]) if len(df) >= 60 else "N/A",
     }
 
 

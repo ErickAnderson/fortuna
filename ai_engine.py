@@ -1,18 +1,23 @@
 """Fortuna — AI Analysis Engine (provider-agnostic + manual prompt mode)."""
 
 import os
+import re
 import json
 from dotenv import load_dotenv
 
-load_dotenv()
 
-AI_PROVIDER = os.getenv("AI_PROVIDER", "").strip().lower()
-AI_API_KEY = os.getenv("AI_API_KEY", "").strip()
-AI_MODEL = os.getenv("AI_MODEL", "").strip()
+def _get_config() -> tuple[str, str, str]:
+    """Read AI config from env each time (supports hot-reload of .env)."""
+    load_dotenv(override=True)
+    provider = os.getenv("AI_PROVIDER", "").strip().lower()
+    api_key = os.getenv("AI_API_KEY", "").strip()
+    model = os.getenv("AI_MODEL", "").strip()
+    return provider, api_key, model
 
 
 def is_api_configured() -> bool:
-    return bool(AI_PROVIDER and AI_API_KEY)
+    provider, api_key, _ = _get_config()
+    return bool(provider and api_key)
 
 
 def build_analysis_prompt(
@@ -24,7 +29,7 @@ def build_analysis_prompt(
     news: list[dict] | None = None,
     recommendations: list[dict] | None = None,
     previous_analyses: list[dict] | None = None,
-) -> str:
+) -> tuple[str, str]:
     """Build the analysis prompt with all available data."""
 
     # Portfolio context
@@ -123,16 +128,17 @@ Provide your complete analysis as JSON."""
 
 def call_ai_api(system_prompt: str, user_prompt: str) -> dict | None:
     """Call the configured AI API. Returns parsed JSON or None on failure."""
-    if not is_api_configured():
+    provider, api_key, _ = _get_config()
+    if not (provider and api_key):
         return None
 
     try:
-        if AI_PROVIDER == "claude":
+        if provider == "claude":
             return _call_claude(system_prompt, user_prompt)
-        elif AI_PROVIDER == "openai":
+        elif provider == "openai":
             return _call_openai(system_prompt, user_prompt)
         else:
-            return None
+            return {"error": f"Unknown AI provider: {provider}"}
     except Exception as e:
         return {"error": str(e)}
 
@@ -140,8 +146,9 @@ def call_ai_api(system_prompt: str, user_prompt: str) -> dict | None:
 def _call_claude(system_prompt: str, user_prompt: str) -> dict:
     from anthropic import Anthropic
 
-    client = Anthropic(api_key=AI_API_KEY)
-    model = AI_MODEL or "claude-sonnet-4-6"
+    _, api_key, model = _get_config()
+    client = Anthropic(api_key=api_key)
+    model = model or "claude-sonnet-4-6"
 
     response = client.messages.create(
         model=model,
@@ -150,6 +157,9 @@ def _call_claude(system_prompt: str, user_prompt: str) -> dict:
         messages=[{"role": "user", "content": user_prompt}],
     )
 
+    if not response.content:
+        return {"error": "Empty response from Claude API"}
+
     text = response.content[0].text
     return _parse_json_response(text)
 
@@ -157,8 +167,9 @@ def _call_claude(system_prompt: str, user_prompt: str) -> dict:
 def _call_openai(system_prompt: str, user_prompt: str) -> dict:
     from openai import OpenAI
 
-    client = OpenAI(api_key=AI_API_KEY)
-    model = AI_MODEL or "gpt-4o"
+    _, api_key, model = _get_config()
+    client = OpenAI(api_key=api_key)
+    model = model or "gpt-4o"
 
     response = client.chat.completions.create(
         model=model,
@@ -170,25 +181,22 @@ def _call_openai(system_prompt: str, user_prompt: str) -> dict:
     )
 
     text = response.choices[0].message.content
+    if not text:
+        return {"error": "Empty response from OpenAI API"}
+
     return _parse_json_response(text)
 
 
 def _parse_json_response(text: str) -> dict:
     """Extract JSON from AI response, handling markdown code blocks."""
     text = text.strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        # Remove first and last lines (```json and ```)
-        json_lines = []
-        in_block = False
-        for line in lines:
-            if line.strip().startswith("```") and not in_block:
-                in_block = True
-                continue
-            elif line.strip() == "```" and in_block:
-                break
-            elif in_block:
-                json_lines.append(line)
-        text = "\n".join(json_lines)
 
-    return json.loads(text)
+    # Try to extract JSON from code blocks anywhere in the text
+    match = re.search(r'```(?:json)?\s*\n(.*?)\n```', text, re.DOTALL)
+    if match:
+        text = match.group(1).strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return {"error": f"Failed to parse AI response as JSON. Raw response: {text[:500]}"}
