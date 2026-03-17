@@ -2,7 +2,7 @@
 
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime
+from datetime import date
 import database as db
 
 
@@ -53,7 +53,11 @@ def render():
     display_df = df[[
         "date", "type", "ticker", "qty", "price", "fee", "broker_name",
     ]].copy()
-    display_df["total"] = df["qty"] * df["price"] + df["fee"]
+    display_df["total"] = df.apply(
+        lambda r: r["qty"] * r["price"] + r["fee"] if r["type"] == "buy"
+        else r["qty"] * r["price"] - r["fee"],
+        axis=1,
+    )
     display_df.columns = ["Date", "Type", "Ticker", "Qty", "Price", "Fee", "Broker", "Total"]
 
     def style_type(val):
@@ -63,7 +67,7 @@ def render():
             return "color: #FF5252"
         return ""
 
-    styled = display_df.style.applymap(
+    styled = display_df.style.map(
         style_type, subset=["Type"]
     ).format({
         "Qty": "{:.0f}",
@@ -78,7 +82,7 @@ def render():
     st.markdown("### Delete Transaction")
     if transactions:
         txn_options = {
-            f"{t['date']} | {t['type'].upper()} | {t['ticker']} | {t['qty']}x ${t['price']:.2f}": t["id"]
+            f"#{t['id']} | {t['date']} | {t['type'].upper()} | {t['ticker']} | {t['qty']}x ${t['price']:.2f}": t["id"]
             for t in transactions
         }
         selected_txn = st.selectbox("Select transaction to delete", options=[""] + list(txn_options.keys()))
@@ -144,7 +148,10 @@ def _render_transaction_form(txn_type: str, positions, brokers, ticker_map, brok
         )
 
     # Summary
-    total = qty * price + fee
+    if txn_type == "buy":
+        total = qty * price + fee
+    else:
+        total = qty * price - fee
     st.markdown(f"**Total: ${total:,.2f}**")
 
     if st.button(f"Submit {txn_type.title()}", key=f"{prefix}_submit", type="primary"):

@@ -16,8 +16,13 @@ def render():
         _render_add_position()
         return
 
-    # Fetch live prices
-    tickers = [p["ticker"] for p in portfolio]
+    # Warn on negative quantities
+    for pos in portfolio:
+        if pos["qty"] < 0:
+            st.warning(f"{pos['ticker']} has negative qty ({pos['qty']}). Check transactions.")
+
+    # Fetch live prices (tuple for caching)
+    tickers = tuple(p["ticker"] for p in portfolio)
     with st.spinner("Fetching live prices..."):
         prices = md.get_batch_prices(tickers)
 
@@ -91,16 +96,16 @@ def render():
                 return "color: #FFA726"  # Underweight
         return ""
 
-    styled = display_df.style.applymap(
+    styled = display_df.style.map(
         style_pnl, subset=["P&L %", "P&L $"]
-    ).applymap(
+    ).map(
         style_weight_diff, subset=["Diff %"]
     ).format({
         "Target %": "{:.1f}%",
         "Current %": "{:.1f}%",
         "Diff %": "{:+.1f}%",
         "Qty": "{:.0f}",
-        "Avg Price": "${:.2f}",
+        "Avg Price": "${:.4f}",
         "Price": "${:.2f}",
         "Cost": "${:,.2f}",
         "Value": "${:,.2f}",
@@ -137,9 +142,10 @@ def render():
     # Manage positions
     st.markdown("### Manage Positions")
 
-    # Edit target weights
+    # Edit target weights with confirm button
     st.markdown("**Edit Target Weights**")
     weight_cols = st.columns(len(rows))
+    weight_changed = False
     for i, row in enumerate(rows):
         with weight_cols[i]:
             new_weight = st.number_input(
@@ -151,8 +157,14 @@ def render():
                 key=f"weight_{row['ticker']}",
             )
             if new_weight != row["target_weight"]:
+                weight_changed = True
+
+    if weight_changed and st.button("Save Weights", type="primary"):
+        for i, row in enumerate(rows):
+            new_weight = st.session_state.get(f"weight_{row['ticker']}", row["target_weight"])
+            if new_weight != row["target_weight"]:
                 db.update_target_weight(row["id"], new_weight)
-                st.rerun()
+        st.rerun()
 
     _render_add_position()
 

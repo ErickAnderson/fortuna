@@ -3,8 +3,10 @@
 import streamlit as st
 import database as db
 
-# Initialize database on startup
-db.init_db()
+# Initialize database once per session
+if "db_initialized" not in st.session_state:
+    db.init_db()
+    st.session_state.db_initialized = True
 
 st.set_page_config(
     page_title="Fortuna",
