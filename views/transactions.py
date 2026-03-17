@@ -311,10 +311,9 @@ def _render_sell_form(positions, brokers, ticker_map, broker_map, holdings):
         )
 
         max_qty = int(holdings.get(ticker, 0))
-        st.caption(f"Available: {max_qty:,} shares")
 
         qty = st.number_input(
-            "Quantity",
+            f"Quantity (max {max_qty:,})",
             min_value=1,
             max_value=max_qty,
             value=min(1, max_qty),
