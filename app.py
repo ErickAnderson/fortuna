@@ -66,17 +66,17 @@ page = st.sidebar.radio(
 )
 
 if page == "Portfolio":
-    from pages import portfolio
+    from views import portfolio
     portfolio.render()
 elif page == "Transactions":
-    from pages import transactions
+    from views import transactions
     transactions.render()
 elif page == "Analysis":
-    from pages import analysis
+    from views import analysis
     analysis.render()
 elif page == "Dividends":
-    from pages import dividends
+    from views import dividends
     dividends.render()
 elif page == "Planner":
-    from pages import planner
+    from views import planner
     planner.render()

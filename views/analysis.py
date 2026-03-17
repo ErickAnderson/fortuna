@@ -65,14 +65,17 @@ def _render_chart(ticker: str):
         st.markdown("### Current Indicators")
         cols = st.columns(4)
         col_idx = 0
+        def fmt_price(val):
+            return f"${val}" if val is not None else "N/A"
+
         display_items = [
-            ("Price", f"${indicators.get('current_price', 'N/A')}"),
+            ("Price", fmt_price(indicators.get("current_price"))),
             ("RSI (14)", f"{indicators.get('RSI', 'N/A')} ({indicators.get('RSI_signal', '')})"),
             ("MACD", f"{indicators.get('MACD_signal', 'N/A')}"),
             ("52w Range", f"{indicators.get('52w_range_position', 'N/A')}"),
-            ("MA20", f"${indicators.get('MA20', 'N/A')}"),
-            ("MA50", f"${indicators.get('MA50', 'N/A')}"),
-            ("MA200", f"${indicators.get('MA200', 'N/A')}"),
+            ("MA20", fmt_price(indicators.get("MA20"))),
+            ("MA50", fmt_price(indicators.get("MA50"))),
+            ("MA200", fmt_price(indicators.get("MA200"))),
             ("Volume", indicators.get("volume_vs_avg", "N/A")),
         ]
         for label, value in display_items:

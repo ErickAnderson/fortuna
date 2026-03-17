@@ -109,5 +109,6 @@ def get_dividend_yield(ticker: str) -> float | None:
     info = get_stock_info(ticker)
     yield_val = info.get("dividend_yield")
     if yield_val is not None:
-        return round(yield_val * 100, 2)
+        # yfinance returns yield as a percentage (e.g. 1.65 = 1.65%)
+        return round(yield_val, 2)
     return None

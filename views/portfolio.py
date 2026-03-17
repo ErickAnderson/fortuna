@@ -106,7 +106,7 @@ def render():
         "Diff %": "{:+.1f}%",
         "Qty": "{:.0f}",
         "Avg Price": "${:.4f}",
-        "Price": "${:.2f}",
+        "Price": lambda x: f"${x:.2f}" if x is not None else "N/A",
         "Cost": "${:,.2f}",
         "Value": "${:,.2f}",
         "P&L %": "{:+.2f}%",
