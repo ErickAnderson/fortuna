@@ -61,7 +61,7 @@ st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
     "Navigate",
-    ["Portfolio", "Transactions", "Analysis"],
+    ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner"],
     label_visibility="collapsed",
 )
 
@@ -74,3 +74,9 @@ elif page == "Transactions":
 elif page == "Analysis":
     from pages import analysis
     analysis.render()
+elif page == "Dividends":
+    from pages import dividends
+    dividends.render()
+elif page == "Planner":
+    from pages import planner
+    planner.render()
