@@ -2,8 +2,7 @@
 
 import yfinance as yf
 import pandas as pd
-from functools import lru_cache
-from datetime import datetime, timedelta
+import streamlit as st
 
 
 ASX_SUFFIX = ".AX"
@@ -31,8 +30,9 @@ def get_current_price(ticker: str) -> float | None:
         return None
 
 
-def get_batch_prices(tickers: list[str]) -> dict[str, float | None]:
-    """Fetch current prices for multiple tickers."""
+@st.cache_data(ttl=300)
+def get_batch_prices(tickers: tuple[str, ...]) -> dict[str, float | None]:
+    """Fetch current prices for multiple tickers. Accepts tuple for caching."""
     prices = {}
     if not tickers:
         return prices
@@ -56,6 +56,7 @@ def get_batch_prices(tickers: list[str]) -> dict[str, float | None]:
     return prices
 
 
+@st.cache_data(ttl=300)
 def get_stock_info(ticker: str) -> dict:
     """Get fundamental data for a ticker."""
     stock = get_stock(ticker)
@@ -80,6 +81,7 @@ def get_stock_info(ticker: str) -> dict:
         return {"name": ticker}
 
 
+@st.cache_data(ttl=300)
 def get_price_history(ticker: str, period: str = "6mo") -> pd.DataFrame:
     """Get OHLCV history for charting."""
     stock = get_stock(ticker)
@@ -90,7 +92,7 @@ def get_price_history(ticker: str, period: str = "6mo") -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_dividends(ticker: str) -> pd.DataFrame:
+def get_dividends(ticker: str) -> pd.Series:
     """Get dividend history."""
     stock = get_stock(ticker)
     try:
@@ -99,6 +101,7 @@ def get_dividends(ticker: str) -> pd.DataFrame:
         return pd.Series(dtype=float)
 
 
+@st.cache_data(ttl=300)
 def get_dividend_yield(ticker: str) -> float | None:
     """Get current dividend yield as percentage."""
     info = get_stock_info(ticker)
