@@ -15,7 +15,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for clean dark UI
+# Navigation state
+if "current_page" not in st.session_state:
+    st.session_state.current_page = "Portfolio"
+
+# Custom CSS
 st.markdown("""
 <style>
     /* Gold accent headers */
@@ -29,10 +33,6 @@ st.markdown("""
         padding: 12px;
     }
 
-    /* Positive/negative colors */
-    .positive { color: #00C853 !important; }
-    .negative { color: #FF5252 !important; }
-
     /* Sidebar styling */
     [data-testid="stSidebar"] {
         background-color: #0E1117;
@@ -42,15 +42,55 @@ st.markdown("""
     /* Table styling */
     .stDataFrame { border-radius: 8px; }
 
-    /* Clean button styling */
-    .stButton > button {
+    /* Main content buttons — gold outline */
+    [data-testid="stMainBlockContainer"] .stButton > button {
         border: 1px solid #D4AF37;
         color: #D4AF37;
         background-color: transparent;
     }
-    .stButton > button:hover {
+    [data-testid="stMainBlockContainer"] .stButton > button:hover {
         background-color: #D4AF37;
         color: #0E1117;
+    }
+
+    /* Sidebar nav buttons — styled as links */
+    [data-testid="stSidebar"] .stButton > button {
+        background: transparent !important;
+        border: none !important;
+        border-left: 3px solid transparent !important;
+        border-radius: 0 6px 6px 0 !important;
+        color: #888888 !important;
+        text-align: left !important;
+        padding: 10px 16px !important;
+        font-size: 0.95rem !important;
+        font-weight: 400 !important;
+        justify-content: flex-start !important;
+    }
+    [data-testid="stSidebar"] .stButton > button > div,
+    [data-testid="stSidebar"] .stButton > button > div > p,
+    [data-testid="stSidebar"] .stButton > button p {
+        text-align: left !important;
+        width: 100% !important;
+    }
+    [data-testid="stSidebar"] .stButton > button > div {
+        display: flex !important;
+        justify-content: flex-start !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:hover {
+        background-color: #1A1D24 !important;
+        color: #D4AF37 !important;
+    }
+    [data-testid="stSidebar"] .stButton > button:focus {
+        box-shadow: none !important;
+    }
+    /* Active nav — disabled buttons styled as highlighted */
+    [data-testid="stSidebar"] .stButton > button:disabled {
+        background-color: #1A1D24 !important;
+        color: #D4AF37 !important;
+        border-left: 3px solid #D4AF37 !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+        cursor: default !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -59,11 +99,21 @@ st.markdown("""
 st.sidebar.markdown("# ⚜ Fortuna")
 st.sidebar.markdown("---")
 
-page = st.sidebar.radio(
-    "Navigate",
-    ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner"],
-    label_visibility="collapsed",
-)
+NAV_ITEMS = ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner"]
+
+for item in NAV_ITEMS:
+    is_active = st.session_state.current_page == item
+    clicked = st.sidebar.button(
+        item,
+        key=f"nav_{item}",
+        use_container_width=True,
+        disabled=is_active,
+    )
+    if clicked:
+        st.session_state.current_page = item
+        st.rerun()
+
+page = st.session_state.current_page
 
 if page == "Portfolio":
     from views import portfolio
