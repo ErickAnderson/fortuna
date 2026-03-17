@@ -234,16 +234,18 @@ def _render_buy_form(positions, brokers, ticker_map, broker_map):
             key="buy_date",
         )
 
-    # Get default price from market
-    default_price = md.get_current_price(ticker) if ticker else 1.00
-    if default_price is None:
-        default_price = 1.00
+    # Update price when ticker changes
+    if ticker != st.session_state.get("_buy_last_ticker"):
+        market_price = md.get_current_price(ticker) if ticker else None
+        if market_price is not None:
+            st.session_state.buy_price = market_price
+        st.session_state._buy_last_ticker = ticker
 
     with col2:
         price = st.number_input(
             "Price per share ($)",
             min_value=0.01,
-            value=default_price,
+            value=st.session_state.get("buy_price", 1.00),
             step=0.01,
             format="%.2f",
             key="buy_price",
@@ -325,16 +327,18 @@ def _render_sell_form(positions, brokers, ticker_map, broker_map, holdings):
             key="sell_date",
         )
 
-    # Get default price from market
-    default_price = md.get_current_price(ticker) if ticker else 1.00
-    if default_price is None:
-        default_price = 1.00
+    # Update price when ticker changes
+    if ticker != st.session_state.get("_sell_last_ticker"):
+        market_price = md.get_current_price(ticker) if ticker else None
+        if market_price is not None:
+            st.session_state.sell_price = market_price
+        st.session_state._sell_last_ticker = ticker
 
     with col2:
         price = st.number_input(
             "Price per share ($)",
             min_value=0.01,
-            value=default_price,
+            value=st.session_state.get("sell_price", 1.00),
             step=0.01,
             format="%.2f",
             key="sell_price",
