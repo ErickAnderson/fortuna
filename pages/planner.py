@@ -14,6 +14,12 @@ def render():
         st.info("No positions yet. Add tickers in Portfolio first.")
         return
 
+    # Check for target weights
+    total_target = sum(p["target_weight"] for p in portfolio)
+    if total_target == 0:
+        st.warning("Set target weights in the Portfolio page to get allocation suggestions.")
+        return
+
     # Fetch current prices
     tickers = tuple(p["ticker"] for p in portfolio)
     with st.spinner("Fetching prices..."):
@@ -79,14 +85,14 @@ def render():
     st.markdown("### Suggested Allocation")
     st.markdown(f"Deploying **${lump_sum:,.2f}** to match target weights:")
 
-    # Editable table
+    # Display table
     rows = []
-    for i, s in enumerate(suggestions):
+    for s in suggestions:
         rows.append({
             "Ticker": s["ticker"],
             "Target %": f"{s['target_weight']:.1f}%",
             "Current Value": f"${s['current_value']:,.2f}",
-            "Price": f"${s['price']:.2f}" if s["price"] else "N/A",
+            "Price": f"${s['price']:.2f}" if s["price"] is not None else "N/A",
             "Suggested $": s["suggested_amount"],
             "Shares": s["suggested_shares"],
             "Cost": f"${s['actual_cost']:,.2f}",
@@ -110,9 +116,13 @@ def render():
     st.markdown("---")
     st.markdown("### Portfolio After Deployment")
 
+    # Build lookup by ticker for safety
+    sug_by_ticker = {s["ticker"]: s for s in suggestions}
+
     preview_rows = []
     new_total_after = total_value + total_deployed
-    for pos, sug in zip(portfolio, suggestions):
+    for pos in portfolio:
+        sug = sug_by_ticker[pos["ticker"]]
         new_value = pos["value"] + sug["actual_cost"]
         new_weight = (new_value / new_total_after * 100) if new_total_after > 0 else 0
         preview_rows.append({
@@ -121,6 +131,16 @@ def render():
             "Before %": f"{(pos['value'] / total_value * 100):.1f}%" if total_value > 0 else "0.0%",
             "After %": f"{new_weight:.1f}%",
             "Diff": f"{new_weight - pos['target_weight']:+.1f}%",
+        })
+
+    if remaining > 0:
+        cash_pct = remaining / (new_total_after + remaining) * 100
+        preview_rows.append({
+            "Ticker": "CASH",
+            "Target %": "—",
+            "Before %": "—",
+            "After %": f"{cash_pct:.1f}%",
+            "Diff": "—",
         })
 
     preview_df = pd.DataFrame(preview_rows)

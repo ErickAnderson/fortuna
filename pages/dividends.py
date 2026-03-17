@@ -21,34 +21,42 @@ def render():
 
     # Fetch dividend data for all positions
     dividend_data = []
+    div_histories = {}  # Store separately from table data
     total_dividends_received = 0.0
 
     with st.spinner("Fetching dividend data..."):
         for pos in positions_with_qty:
             ticker = pos["ticker"]
-            divs = md.get_dividends(ticker)
+            divs_df = md.get_dividends(ticker)
+            divs = divs_df["Dividend"] if not divs_df.empty else pd.Series(dtype=float)
             div_yield = md.get_dividend_yield(ticker)
+            div_histories[ticker] = divs
 
-            # Calculate total dividends received (based on holding qty)
+            # Estimate total dividends received (approximation — assumes current qty held for full history)
             total_divs = divs.sum() * pos["qty"] if not divs.empty else 0.0
             total_dividends_received += total_divs
 
             # Latest dividend
             latest_div = float(divs.iloc[-1]) if not divs.empty else 0.0
             latest_date = str(divs.index[-1].date()) if not divs.empty else "N/A"
-            annual_div = float(divs.tail(4).sum()) if len(divs) >= 4 else float(divs.sum())
+
+            # Trailing 12-month dividends (not assuming frequency)
+            if not divs.empty:
+                cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
+                annual_div = float(divs[divs.index >= cutoff].sum())
+            else:
+                annual_div = 0.0
 
             dividend_data.append({
                 "Ticker": ticker,
                 "Qty": pos["qty"],
-                "Div Yield %": f"{div_yield:.2f}%" if div_yield else "N/A",
+                "Div Yield %": f"{div_yield:.2f}%" if div_yield is not None else "N/A",
                 "Latest Div": f"${latest_div:.4f}",
                 "Latest Date": latest_date,
                 "Annual Div/Share": f"${annual_div:.4f}",
                 "Annual Income": f"${annual_div * pos['qty']:,.2f}",
-                "Total Received": f"${total_divs:,.2f}",
+                "Total Received*": f"${total_divs:,.2f}",
                 "_annual_income": annual_div * pos["qty"],
-                "_div_history": divs,
             })
 
     # Top metrics
@@ -59,14 +67,16 @@ def render():
     col1, col2, col3 = st.columns(3)
     col1.metric("Annual Dividend Income", f"${total_annual:,.2f}")
     col2.metric("Portfolio Yield", f"{portfolio_yield:.2f}%")
-    col3.metric("Total Dividends Received", f"${total_dividends_received:,.2f}")
+    col3.metric("Total Dividends Received*", f"${total_dividends_received:,.2f}")
+
+    st.caption("*Total Received is an estimate assuming current qty was held for the full dividend history.")
 
     st.markdown("---")
 
     # Summary table
     st.markdown("### Dividend Summary")
     display_cols = ["Ticker", "Qty", "Div Yield %", "Latest Div", "Latest Date",
-                    "Annual Div/Share", "Annual Income", "Total Received"]
+                    "Annual Div/Share", "Annual Income", "Total Received*"]
     df = pd.DataFrame(dividend_data)[display_cols]
     st.dataframe(df, use_container_width=True, hide_index=True)
 
@@ -81,8 +91,8 @@ def render():
     )
 
     if selected:
-        div_entry = next(d for d in dividend_data if d["Ticker"] == selected)
-        divs = div_entry["_div_history"]
+        divs = div_histories.get(selected, pd.Series(dtype=float))
+        qty = next(d["Qty"] for d in dividend_data if d["Ticker"] == selected)
 
         if divs.empty:
             st.info(f"No dividend history for {selected}")
@@ -98,6 +108,6 @@ def render():
             hist_df = pd.DataFrame({
                 "Date": [d.date() for d in divs.index],
                 "Dividend/Share": [f"${v:.4f}" for v in divs.values],
-                "Income": [f"${v * div_entry['Qty']:,.2f}" for v in divs.values],
+                "Income": [f"${v * qty:,.2f}" for v in divs.values],
             })
             st.dataframe(hist_df, use_container_width=True, hide_index=True)

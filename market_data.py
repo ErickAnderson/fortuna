@@ -92,13 +92,15 @@ def get_price_history(ticker: str, period: str = "6mo") -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def get_dividends(ticker: str) -> pd.Series:
-    """Get dividend history."""
+@st.cache_data(ttl=300)
+def get_dividends(ticker: str) -> pd.DataFrame:
+    """Get dividend history as DataFrame (cacheable)."""
     stock = get_stock(ticker)
     try:
-        return stock.dividends
+        divs = stock.dividends
+        return divs.to_frame(name="Dividend") if not divs.empty else pd.DataFrame(columns=["Dividend"])
     except Exception:
-        return pd.Series(dtype=float)
+        return pd.DataFrame(columns=["Dividend"])
 
 
 @st.cache_data(ttl=300)
