@@ -50,7 +50,11 @@ def get_batch_prices(tickers: tuple[str, ...]) -> dict[str, float | None]:
             except (KeyError, IndexError):
                 prices[orig] = None
     except Exception:
-        for t in tickers:
+        pass
+
+    # Fallback: individually fetch any tickers that batch returned None for
+    for t in tickers:
+        if prices.get(t) is None:
             prices[t] = get_current_price(t)
 
     return prices
