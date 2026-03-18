@@ -2,6 +2,7 @@
 
 import streamlit as st
 import streamlit.components.v1 as components
+import base64
 import json
 from datetime import datetime
 import database as db
@@ -96,7 +97,23 @@ def _render_analysis(ticker: str, positions: list[dict]):
         st.info("No AI API configured. Using manual prompt mode — copy the prompt to your Claude/ChatGPT session.")
 
     if st.button(f"Analyze {ticker}", type="primary", key="run_analysis"):
+        # Clear previous prompt state when re-analyzing
+        st.session_state.pop("manual_prompt", None)
+        st.session_state.pop("manual_prompt_ticker", None)
         _run_analysis(ticker, positions, api_configured)
+
+    # Render manual prompt UI from session state (persists across reruns)
+    if (
+        st.session_state.get("manual_prompt_ticker") == ticker
+        and "manual_prompt" in st.session_state
+    ):
+        state = st.session_state["manual_prompt"]
+        _render_manual_prompt(
+            state["system_prompt"],
+            state["user_prompt"],
+            ticker,
+            positions,
+        )
 
 
 def _run_analysis(ticker: str, positions: list[dict], api_configured: bool):
@@ -169,13 +186,22 @@ def _run_analysis(ticker: str, positions: list[dict], api_configured: bool):
         elif result and "error" in result:
             st.error(f"AI API error: {result['error']}")
             st.markdown("Falling back to manual prompt mode below.")
-            _render_manual_prompt(system_prompt, user_prompt, ticker, positions)
+            _store_manual_prompt(system_prompt, user_prompt, ticker)
         else:
             st.error("Failed to get AI response.")
-            _render_manual_prompt(system_prompt, user_prompt, ticker, positions)
+            _store_manual_prompt(system_prompt, user_prompt, ticker)
     else:
-        # Manual prompt mode
-        _render_manual_prompt(system_prompt, user_prompt, ticker, positions)
+        # Manual prompt mode — store in session state, rendered by _render_analysis
+        _store_manual_prompt(system_prompt, user_prompt, ticker)
+
+
+def _store_manual_prompt(system_prompt: str, user_prompt: str, ticker: str):
+    """Store prompt data in session state for persistent rendering."""
+    st.session_state["manual_prompt"] = {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+    }
+    st.session_state["manual_prompt_ticker"] = ticker
 
 
 def _render_manual_prompt(system_prompt: str, user_prompt: str, ticker: str, positions: list[dict]):
@@ -188,20 +214,31 @@ def _render_manual_prompt(system_prompt: str, user_prompt: str, ticker: str, pos
 
     st.code(full_prompt, language="text")
 
-    # Use st.components.v1.html for actual clipboard functionality
-    if st.button("Copy to Clipboard", key="copy_prompt"):
-        escaped = json.dumps(full_prompt)
-        components.html(
-            f"""<script>
-            navigator.clipboard.writeText({escaped}).then(
-                () => window.parent.document.querySelector('[data-testid="stNotification"]'),
-                (err) => console.error('Copy failed:', err)
+    # Clipboard copy via embedded JS button (avoids Streamlit rerun issues)
+    # Store text as base64 in JS to avoid HTML attribute escaping issues
+    b64_prompt = base64.b64encode(full_prompt.encode()).decode()
+    components.html(
+        f"""
+        <script>
+        function copyPrompt() {{
+            var text = atob("{b64_prompt}");
+            navigator.clipboard.writeText(text).then(
+                function() {{ document.getElementById('copyMsg').style.display='inline'; }},
+                function() {{ document.getElementById('copyMsg').textContent='Copy failed'; document.getElementById('copyMsg').style.display='inline'; }}
             );
-            </script>
-            <p style="color: #00C853; font-family: sans-serif;">Copied to clipboard!</p>
-            """,
-            height=30,
-        )
+        }}
+        </script>
+        <button id="copyBtn" onclick="copyPrompt()" style="
+            background-color: #262730; color: #FAFAFA; border: 1px solid #4A4A5A;
+            padding: 8px 16px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; font-family: sans-serif;
+        ">Copy to Clipboard</button>
+        <span id="copyMsg" style="color: #00C853; font-family: sans-serif; margin-left: 10px; display: none;">
+            Copied!
+        </span>
+        """,
+        height=50,
+    )
 
     st.markdown("---")
     st.markdown("### Paste AI Response")
