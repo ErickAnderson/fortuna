@@ -3,13 +3,37 @@
 import sqlite3
 import json
 import os
+import hashlib
+import base64
 from contextlib import closing
 from datetime import datetime
 from dotenv import load_dotenv
+from cryptography.fernet import Fernet, InvalidToken
 
 load_dotenv()
 
 DB_PATH = os.getenv("DB_PATH", "fortuna.db")
+
+
+def _get_fernet() -> Fernet:
+    """Derive a Fernet key from machine identity for API key encryption at rest."""
+    import socket
+    salt = b"fortuna-api-key-salt-v1"
+    machine_id = socket.gethostname().encode()
+    key = hashlib.pbkdf2_hmac("sha256", machine_id, salt, 100_000, dklen=32)
+    return Fernet(base64.urlsafe_b64encode(key))
+
+
+def encrypt_api_key(plaintext: str) -> str:
+    return _get_fernet().encrypt(plaintext.encode()).decode()
+
+
+def decrypt_api_key(ciphertext: str) -> str:
+    try:
+        return _get_fernet().decrypt(ciphertext.encode()).decode()
+    except (InvalidToken, Exception):
+        # Fallback: if decryption fails, assume it's a plaintext key (migration)
+        return ciphertext
 
 
 def get_connection() -> sqlite3.Connection:
@@ -253,6 +277,18 @@ def get_analyses(position_id: int | None = None) -> list[dict]:
         return [dict(r) for r in rows]
 
 
+def get_analysis_by_id(analysis_id: int) -> dict | None:
+    with closing(get_connection()) as conn:
+        row = conn.execute(
+            """SELECT a.*, p.ticker
+               FROM analyses a
+               JOIN positions p ON a.position_id = p.id
+               WHERE a.id = ?""",
+            (analysis_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def add_analysis(
     position_id: int,
     verdict: str,
@@ -273,16 +309,23 @@ def add_analysis(
 
 # --- AI Provider CRUD ---
 
+def _decrypt_provider_row(row: sqlite3.Row) -> dict:
+    """Convert a provider row to dict with decrypted API key."""
+    d = dict(row)
+    d["api_key"] = decrypt_api_key(d["api_key"])
+    return d
+
+
 def get_ai_providers() -> list[dict]:
     with closing(get_connection()) as conn:
         rows = conn.execute("SELECT * FROM ai_providers ORDER BY provider").fetchall()
-        return [dict(r) for r in rows]
+        return [_decrypt_provider_row(r) for r in rows]
 
 
 def get_ai_provider(provider: str) -> dict | None:
     with closing(get_connection()) as conn:
         row = conn.execute("SELECT * FROM ai_providers WHERE provider = ?", (provider,)).fetchone()
-        return dict(row) if row else None
+        return _decrypt_provider_row(row) if row else None
 
 
 def get_enabled_ai_providers() -> list[dict]:
@@ -290,10 +333,11 @@ def get_enabled_ai_providers() -> list[dict]:
         rows = conn.execute(
             "SELECT * FROM ai_providers WHERE is_enabled = 1 ORDER BY provider"
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_decrypt_provider_row(r) for r in rows]
 
 
 def upsert_ai_provider(provider: str, api_key: str, model: str, is_enabled: bool) -> int:
+    encrypted_key = encrypt_api_key(api_key)
     with closing(get_connection()) as conn:
         conn.execute(
             """INSERT INTO ai_providers (provider, api_key, model, is_enabled)
@@ -303,7 +347,7 @@ def upsert_ai_provider(provider: str, api_key: str, model: str, is_enabled: bool
                    model = excluded.model,
                    is_enabled = excluded.is_enabled,
                    updated_at = datetime('now')""",
-            (provider, api_key, model, int(is_enabled)),
+            (provider, encrypted_key, model, int(is_enabled)),
         )
         conn.commit()
         row = conn.execute("SELECT id FROM ai_providers WHERE provider = ?", (provider,)).fetchone()

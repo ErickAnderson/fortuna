@@ -81,7 +81,7 @@ def _render_provider_form(provider_key: str, info: dict, saved: dict | None):
                     models = ai.list_models(provider_key, api_key)
                 st.session_state[models_key] = models
                 valid = [m for m in models if not m.startswith("Error:")]
-                if valid:
+                if valid and saved:
                     db.update_ai_provider_models_cache(provider_key, valid)
 
     # Row 3: [Enabled checkbox] [Save] [Test Connection] [Delete] — all on one line

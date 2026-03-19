@@ -1,5 +1,6 @@
 """Fortuna — Logs page for viewing and exporting error logs."""
 
+import html
 import streamlit as st
 import database as db
 
@@ -42,9 +43,9 @@ def render():
         else:
             icon = "gray"
 
-        header = f'<span style="color:{icon}; font-weight:600;">[{level}]</span> {ts} — {source}'
+        header = f'<span style="color:{icon}; font-weight:600;">[{level}]</span> {html.escape(ts)} — {html.escape(source)}'
         st.markdown(header, unsafe_allow_html=True)
-        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{message}")
+        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;{html.escape(message)}")
 
         if log.get("detail"):
             with st.expander("Full details"):

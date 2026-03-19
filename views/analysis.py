@@ -1,5 +1,6 @@
 """Fortuna — AI Analysis page with charts, prompt generation, and timeline."""
 
+import html as html_mod
 import streamlit as st
 import streamlit.components.v1 as components
 import base64
@@ -339,8 +340,8 @@ def _display_analysis_result(verdict: str, price_target, summary: str, full_anal
     st.markdown(
         f'<div style="text-align:center; padding:20px; margin:10px 0; '
         f'border:2px solid {color}; border-radius:12px;">'
-        f'<h1 style="color:{color} !important; margin:0;">{verdict.upper()}</h1>'
-        f'<p style="font-size:1.2em; color:#FAFAFA;">Target: {target_text}</p>'
+        f'<h1 style="color:{color} !important; margin:0;">{html_mod.escape(verdict.upper())}</h1>'
+        f'<p style="font-size:1.2em; color:#FAFAFA;">Target: {html_mod.escape(target_text)}</p>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -363,8 +364,7 @@ def _format_au_date(iso_date: str) -> str:
 @st.dialog("Analysis Details", width="large")
 def _show_analysis_dialog(analysis_id: int):
     """Modal dialog showing full analysis details and scoring."""
-    analyses = db.get_analyses()
-    analysis = next((a for a in analyses if a["id"] == analysis_id), None)
+    analysis = db.get_analysis_by_id(analysis_id)
     if not analysis:
         st.error("Analysis not found.")
         return
@@ -382,8 +382,8 @@ def _show_analysis_dialog(analysis_id: int):
     st.markdown(
         f'<div style="text-align:center; padding:12px; margin-bottom:12px; '
         f'border:2px solid {color}; border-radius:12px;">'
-        f'<h2 style="color:{color} !important; margin:0;">{verdict}</h2>'
-        f'<p style="color:#FAFAFA; margin:4px 0 0;">Target: {target_str}</p>'
+        f'<h2 style="color:{color} !important; margin:0;">{html_mod.escape(verdict)}</h2>'
+        f'<p style="color:#FAFAFA; margin:4px 0 0;">Target: {html_mod.escape(target_str)}</p>'
         f'</div>',
         unsafe_allow_html=True,
     )
@@ -466,7 +466,7 @@ def _render_timeline(ticker: str):
         cd, ca, ct, cf, cs, cv = st.columns([2, 1, 1, 2, 1, 1])
         cd.markdown(date_str)
         ca.markdown(
-            f'<span style="color:{color}; font-weight:600;">{verdict}</span>',
+            f'<span style="color:{color}; font-weight:600;">{html_mod.escape(verdict)}</span>',
             unsafe_allow_html=True,
         )
         ct.markdown(target_str)

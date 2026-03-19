@@ -17,13 +17,13 @@ def _friendly_error(error: Exception, provider: str) -> str:
 
     # Detect common patterns
     msg = raw.lower()
-    if "401" in msg or "invalid" in msg and "key" in msg or "authentication" in msg:
+    if "401" in msg or ("invalid" in msg and "key" in msg) or "authentication" in msg:
         friendly = f"{provider.title()}: Invalid API key. Check your key in Settings."
     elif "403" in msg or "permission" in msg:
         friendly = f"{provider.title()}: Access denied. Your API key may lack permissions."
     elif "429" in msg or "rate" in msg or "quota" in msg or "resource_exhausted" in msg:
         friendly = f"{provider.title()}: Rate limit or quota exceeded. Wait a moment and try again, or check your plan."
-    elif "404" in msg or "not found" in msg and "model" in msg:
+    elif "404" in msg or ("not found" in msg and "model" in msg):
         friendly = f"{provider.title()}: Model not found. Try fetching models again."
     elif "timeout" in msg or "timed out" in msg:
         friendly = f"{provider.title()}: Request timed out. Try again."
@@ -67,38 +67,36 @@ def is_api_configured() -> bool:
     return bool(provider and api_key)
 
 
-def get_configured_providers() -> list[dict]:
-    """Return list of provider+model options for UI dropdowns.
+def _get_ordered_models(row: dict) -> list[str]:
+    """Get ordered model list for a provider row (saved model first, then cached)."""
+    cached = []
+    if row.get("models_cache"):
+        try:
+            cached = json.loads(row["models_cache"])
+        except (json.JSONDecodeError, TypeError):
+            pass
 
-    Expands each enabled provider into one entry per cached model
-    (from Fetch Models in Settings). Falls back to the saved model only.
-    """
+    if not cached:
+        return [row["model"] or "default"]
+
+    saved_model = row["model"]
+    ordered = []
+    if saved_model in cached:
+        ordered.append(saved_model)
+    for m in cached:
+        if m != saved_model:
+            ordered.append(m)
+    return ordered
+
+
+def get_configured_providers() -> list[dict]:
+    """Return list of provider+model options for UI dropdowns."""
     providers = []
     for row in db.get_enabled_ai_providers():
-        cached = []
-        if row.get("models_cache"):
-            try:
-                cached = json.loads(row["models_cache"])
-            except (json.JSONDecodeError, TypeError):
-                pass
+        for m in _get_ordered_models(row):
+            label = f"{row['provider'].title()} — {m}"
+            providers.append({"provider": row["provider"], "label": label, "model": m})
 
-        if cached:
-            saved_model = row["model"]
-            # Put the saved/default model first, then the rest
-            ordered = []
-            if saved_model in cached:
-                ordered.append(saved_model)
-            for m in cached:
-                if m != saved_model:
-                    ordered.append(m)
-            for m in ordered:
-                label = f"{row['provider'].title()} — {m}"
-                providers.append({"provider": row["provider"], "label": label, "model": m})
-        else:
-            label = f"{row['provider'].title()} — {row['model'] or 'default'}"
-            providers.append({"provider": row["provider"], "label": label, "model": row["model"]})
-
-    # .env fallback
     if not providers:
         load_dotenv(override=True)
         env_provider = os.getenv("AI_PROVIDER", "").strip().lower()
@@ -115,27 +113,8 @@ def get_provider_model_options() -> dict[str, list[str]]:
     """Return {provider_label: [models]} for enabled providers. Used for two-dropdown UI."""
     result = {}
     for row in db.get_enabled_ai_providers():
-        label = row["provider"].title()
-        cached = []
-        if row.get("models_cache"):
-            try:
-                cached = json.loads(row["models_cache"])
-            except (json.JSONDecodeError, TypeError):
-                pass
+        result[row["provider"].title()] = _get_ordered_models(row)
 
-        if cached:
-            saved_model = row["model"]
-            ordered = []
-            if saved_model in cached:
-                ordered.append(saved_model)
-            for m in cached:
-                if m != saved_model:
-                    ordered.append(m)
-            result[label] = ordered
-        else:
-            result[label] = [row["model"] or "default"]
-
-    # .env fallback
     if not result:
         load_dotenv(override=True)
         env_provider = os.getenv("AI_PROVIDER", "").strip().lower()
@@ -352,27 +331,26 @@ Provide your complete analysis as JSON."""
 
 def call_ai_api(system_prompt: str, user_prompt: str, provider_name: str | None = None, model_override: str | None = None) -> dict | None:
     """Call the configured AI API. Returns parsed JSON or None on failure."""
-    provider, api_key, _ = _get_config(provider_name, model_override)
+    provider, api_key, model = _get_config(provider_name, model_override)
     if not (provider and api_key):
         return None
 
     try:
         if provider == "claude":
-            return _call_claude(system_prompt, user_prompt, provider_name)
+            return _call_claude(system_prompt, user_prompt, api_key, model)
         elif provider == "openai":
-            return _call_openai(system_prompt, user_prompt, provider_name)
+            return _call_openai(system_prompt, user_prompt, api_key, model)
         elif provider == "gemini":
-            return _call_gemini(system_prompt, user_prompt, provider_name)
+            return _call_gemini(system_prompt, user_prompt, api_key, model)
         else:
             return {"error": f"Unknown AI provider: {provider}"}
     except Exception as e:
         return {"error": _friendly_error(e, provider)}
 
 
-def _call_claude(system_prompt: str, user_prompt: str, provider_name: str | None = None) -> dict:
+def _call_claude(system_prompt: str, user_prompt: str, api_key: str, model: str) -> dict:
     from anthropic import Anthropic
 
-    _, api_key, model = _get_config(provider_name)
     client = Anthropic(api_key=api_key)
     model = model or "claude-sonnet-4-6"
 
@@ -390,10 +368,9 @@ def _call_claude(system_prompt: str, user_prompt: str, provider_name: str | None
     return _parse_json_response(text)
 
 
-def _call_openai(system_prompt: str, user_prompt: str, provider_name: str | None = None) -> dict:
+def _call_openai(system_prompt: str, user_prompt: str, api_key: str, model: str) -> dict:
     from openai import OpenAI
 
-    _, api_key, model = _get_config(provider_name)
     client = OpenAI(api_key=api_key)
     model = model or "gpt-4o"
 
@@ -413,11 +390,10 @@ def _call_openai(system_prompt: str, user_prompt: str, provider_name: str | None
     return _parse_json_response(text)
 
 
-def _call_gemini(system_prompt: str, user_prompt: str, provider_name: str | None = None) -> dict:
+def _call_gemini(system_prompt: str, user_prompt: str, api_key: str, model: str) -> dict:
     from google import genai
     from google.genai import types
 
-    _, api_key, model = _get_config(provider_name)
     client = genai.Client(api_key=api_key)
     model_name = model or "gemini-2.0-flash"
 
