@@ -1,0 +1,51 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nickolay/tauri-apps-api/main/tauri/src/api/config.schema.json",
+  "productName": "Fortuna",
+  "version": "0.1.0",
+  "identifier": "com.fortuna.desktop",
+  "build": {
+    "frontendDist": "../src-frontend",
+    "beforeBuildCommand": "venv/bin/python scripts/build_sidecar.py"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Fortuna",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "url": "index.html",
+        "decorations": true,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg", "nsis"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": {
+      "binaries/fortuna-server-*": "binaries/",
+      "binaries/_internal/**/*": "binaries/_internal/"
+    },
+    "macOS": {
+      "entitlements": "./entitlements.plist",
+      "signingIdentity": null
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
