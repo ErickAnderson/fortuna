@@ -4,18 +4,6 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "shell:allow-spawn",
-    "shell:allow-execute",
-    "opener:default",
-    {
-      "identifier": "shell:allow-spawn",
-      "allow": [
-        {
-          "name": "fortuna-server",
-          "cmd": "binaries/fortuna-server",
-          "args": true
-        }
-      ]
-    }
+    "opener:default"
   ]
 }

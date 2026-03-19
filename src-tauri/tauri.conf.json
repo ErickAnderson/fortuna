@@ -5,7 +5,7 @@
   "identifier": "com.fortuna.desktop",
   "build": {
     "frontendDist": "../src-frontend",
-    "beforeBuildCommand": "venv/bin/python scripts/build_sidecar.py"
+    "beforeBuildCommand": "npm run build:sidecar"
   },
   "app": {
     "windows": [

@@ -52,7 +52,7 @@ def build():
         (os.path.join(PROJECT_ROOT, "market_data.py"), "."),
         (os.path.join(PROJECT_ROOT, "charts.py"), "."),
         (os.path.join(PROJECT_ROOT, "views"), "views"),
-        (os.path.join(PROJECT_ROOT, ".streamlit"), ".streamlit"),
+        (os.path.join(PROJECT_ROOT, ".streamlit", "config.toml"), ".streamlit"),
     ]
 
     add_data_args = []
@@ -90,7 +90,7 @@ def build():
         "--noconfirm",
         "--name",
         "fortuna-server",
-        # --onedir is critical: --onefile spawns unkillable child processes
+        "--onedir",  # Critical: --onefile spawns unkillable child processes
         "--distpath",
         DIST_DIR,
         "--workpath",
