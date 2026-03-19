@@ -43,17 +43,15 @@ Opens at [http://localhost:8501](http://localhost:8501).
 
 ### Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `DB_PATH` | SQLite database file path | OS app data dir (`~/Library/Application Support/Fortuna/fortuna.db` on macOS) |
+AI provider API keys are configured in the **Settings** page within the app — no environment variables needed.
 
-For development, you can override the DB path:
+For development, you can optionally override the database path:
 
 ```bash
 DB_PATH=./fortuna.db streamlit run app.py
 ```
 
-AI provider API keys are configured in the Settings page within the app.
+By default, the database is stored in the OS app data directory (`~/Library/Application Support/Fortuna/fortuna.db` on macOS).
 
 ## Building the Desktop App
 
@@ -165,3 +163,11 @@ fortuna/
 | Charts | Plotly |
 | Bundler | PyInstaller (onedir mode) |
 | Installers | DMG (macOS), NSIS (Windows) |
+
+## License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT).
+
+Copyright (c) 2026 Erick
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the conditions of the MIT License.
