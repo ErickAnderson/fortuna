@@ -248,7 +248,7 @@ def _render_manual_prompt(system_prompt: str, user_prompt: str, ticker: str, pos
         "AI Response (JSON)",
         height=300,
         key="ai_response",
-        placeholder='{\n    "verdict": "BUY|SELL|HOLD",\n    "price_target": 0.00,\n    "summary": "...",\n    "full_analysis": "..."\n}',
+        placeholder='{\n    "verdict": "BUY|SELL|HOLD",\n    "price_target": 0.00,\n    "summary": "...",\n    "full_analysis": "...",\n    "action_plan": "..."\n}',
     )
 
     if st.button("Save Analysis", key="save_manual") and response_text:
@@ -287,6 +287,11 @@ def _save_and_display_analysis(ticker: str, positions: list[dict], result: dict)
 
     summary = result.get("summary", "")
     full_analysis = result.get("full_analysis", "")
+
+    # Append action_plan to full_analysis if provided separately
+    action_plan = result.get("action_plan", "")
+    if action_plan and "action plan" not in full_analysis.lower():
+        full_analysis += f"\n\n## Action Plan\n{action_plan}"
 
     db.add_analysis(
         position_id=position["id"],

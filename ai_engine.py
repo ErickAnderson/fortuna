@@ -3,6 +3,7 @@
 import os
 import re
 import json
+from datetime import date
 from dotenv import load_dotenv
 
 
@@ -84,34 +85,55 @@ def build_analysis_prompt(
             if analysis.get('accuracy_score') is not None:
                 prev_text += f"  Accuracy Score: {analysis['accuracy_score']}/10 — {analysis.get('accuracy_notes', '')}\n"
 
-    system_prompt = """You are Fortuna, an expert ASX (Australian Securities Exchange) portfolio analyst.
+    today = date.today().strftime("%Y-%m-%d")
+
+    system_prompt = f"""You are an expert ASX (Australian Securities Exchange) portfolio analyst.
+Today's date is {today}.
 You provide detailed, actionable investment analysis using technical and fundamental analysis.
 Use proper financial terminology — the user is familiar with trading concepts.
+
+IMPORTANT — REAL-TIME RESEARCH:
+The market data below is a starting point, NOT the full picture. You MUST supplement it with current information:
+- **Search the web** for the latest news, analyst reports, and sector developments for this ticker.
+- For ASX-listed ETFs/stocks, check sources like: ASX.com.au, MarketIndex.com.au, Simply Wall St, TradingView.
+- For commodities (uranium, gold, etc.), look up the CURRENT spot price (e.g. uranium U3O8 $/lb on TradingEconomics, Kitco, UxC, or CarbonCredits). Always state the current commodity spot price and its recent trend — this is essential context.
+- For macro context: check the MOST RECENT RBA decision (not the next one — confirm what actually happened), current oil prices, and any major geopolitical events affecting markets RIGHT NOW.
+- For ETFs, identify the top holdings and check for recent production guidance changes, earnings reports, or material news from those companies.
+- Cite specific sources or data points when making claims about sector trends or catalysts.
+
+ACCURACY REQUIREMENTS:
+- Do NOT guess dates for events — verify them. If you cannot verify a date, say "date TBC" rather than fabricating one.
+- Do NOT present past events as upcoming. Verify whether an event has already occurred before listing it as a catalyst.
+- Do NOT include internal citation markers, reference tags, or any non-readable artifacts in your output. Your response must be clean, human-readable markdown.
+- If you do NOT have web access, clearly state this limitation upfront and note which claims are based on general knowledge vs the provided data.
 
 Your analysis MUST include:
 1. **VERDICT**: Exactly one of: BUY, SELL, or HOLD
 2. **PRICE TARGET**: A specific price to buy at, sell at, or hold until
 3. **SUMMARY**: 2-3 sentence executive summary
 4. **DETAILED ANALYSIS** covering:
-   - Fundamental Analysis: P/E, P/B, dividend yield, earnings, debt, ROE, sector outlook
+   - Macro & Geopolitical Context: Current major events affecting this asset class (wars, trade policy, energy crises, central bank decisions). This section should demonstrate awareness of what is happening in the world TODAY, not generic sector commentary.
+   - Fundamental Analysis: P/E, P/B, dividend yield, earnings, debt, ROE, sector outlook. For commodity ETFs, include the current commodity spot price, recent price action, and analyst forecasts.
    - Technical Analysis: Support/resistance levels, RSI interpretation, MACD signal, moving average crossovers, volume trends, candlestick patterns
    - Portfolio Context: How this position fits the overall portfolio, correlation with other holdings, weight vs target
    - Risk Assessment: Key risks, volatility, downside scenarios
-   - Catalyst Watch: Upcoming events (earnings, ex-dividend dates, macro events) that could move the price
+   - Catalyst Watch: **Specific, dated** upcoming events ONLY — e.g. "Cameco Q1 earnings ~April 30" or "RBA next meeting May 2026". Do NOT list generic categories like "earnings" or "policy changes" without specific dates. Do NOT list events that have already passed.
+   - Sources & Recent Events: List 3-5 specific recent news items, reports, or data points you found during research, with approximate dates. This proves your analysis is grounded in current information, not generic knowledge.
 5. **ACTION PLAN**: Specific steps — e.g. "Buy at $X if RSI drops below 30" or "Wait for price to test $X support before adding"
 
 Consider the FULL portfolio context including potential overlaps between ETFs/stocks.
 If previous analyses exist, reference them and note if conditions have changed.
 
 Format your response as JSON:
-{
+{{
     "verdict": "BUY|SELL|HOLD",
     "price_target": 0.00,
     "summary": "...",
-    "full_analysis": "... (use markdown formatting for readability)"
-}"""
+    "full_analysis": "... (use markdown formatting for readability)",
+    "action_plan": "... (numbered steps with specific price levels and conditions)"
+}}"""
 
-    user_prompt = f"""Analyze {ticker} for a buy/sell/hold decision today.
+    user_prompt = f"""Analyze {ticker} for a buy/sell/hold decision today ({today}).
 
 {portfolio_text}
 {fundamentals_text}
@@ -121,6 +143,14 @@ Format your response as JSON:
 {rec_text}
 {prev_text}
 
+Before writing your analysis, research the following:
+1. Current spot/commodity price relevant to {ticker} and its recent trajectory
+2. The MOST RECENT RBA rate decision and what was decided (do not guess the next one)
+3. Any major geopolitical events currently affecting markets (conflicts, trade wars, energy crises)
+4. Recent news about {ticker}'s top holdings or underlying companies (production guidance, earnings, contracts)
+5. Upcoming dated catalysts (earnings dates, central bank meetings, policy announcements)
+
+Include what you find in your analysis. If you cannot access live data, state this clearly.
 Provide your complete analysis as JSON."""
 
     return system_prompt, user_prompt
