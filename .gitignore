@@ -11,6 +11,9 @@ dist/
 build/
 .DS_Store
 
+# Claude Code
+.claude/
+
 # Tauri
 src-tauri/target/
 src-tauri/binaries/
