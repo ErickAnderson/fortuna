@@ -1,0 +1,79 @@
+name: 'Release'
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target aarch64-apple-darwin'
+            python-arch: 'arm64'
+          - platform: 'macos-latest'
+            args: '--target x86_64-apple-darwin'
+            python-arch: 'x64'
+          - platform: 'windows-latest'
+            args: ''
+            python-arch: 'x64'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: ${{ matrix.python-arch }}
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__-beta
+          releaseName: 'Fortuna v__VERSION__-beta'
+          releaseBody: |
+            Beta release of Fortuna desktop app.
+
+            **Download:**
+            - **macOS (Apple Silicon):** `.dmg` file with `aarch64` in the name
+            - **macOS (Intel):** `.dmg` file with `x64` in the name
+            - **Windows:** `.exe` installer
+
+            See the assets below to download for your platform.
+          releaseDraft: false
+          prerelease: true
+          args: ${{ matrix.args }}
