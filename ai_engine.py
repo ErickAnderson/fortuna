@@ -3,22 +3,195 @@
 import os
 import re
 import json
+import traceback
 from datetime import date
 from dotenv import load_dotenv
+import database as db
 
 
-def _get_config() -> tuple[str, str, str]:
-    """Read AI config from env each time (supports hot-reload of .env)."""
+def _friendly_error(error: Exception, provider: str) -> str:
+    """Convert raw API exceptions into short user-friendly messages.
+    Logs the full traceback to the DB for the Logs page."""
+    raw = str(error)
+    detail = traceback.format_exc()
+
+    # Detect common patterns
+    msg = raw.lower()
+    if "401" in msg or ("invalid" in msg and "key" in msg) or "authentication" in msg:
+        friendly = f"{provider.title()}: Invalid API key. Check your key in Settings."
+    elif "403" in msg or "permission" in msg:
+        friendly = f"{provider.title()}: Access denied. Your API key may lack permissions."
+    elif "429" in msg or "rate" in msg or "quota" in msg or "resource_exhausted" in msg:
+        friendly = f"{provider.title()}: Rate limit or quota exceeded. Wait a moment and try again, or check your plan."
+    elif "404" in msg or ("not found" in msg and "model" in msg):
+        friendly = f"{provider.title()}: Model not found. Try fetching models again."
+    elif "timeout" in msg or "timed out" in msg:
+        friendly = f"{provider.title()}: Request timed out. Try again."
+    elif "connection" in msg or "network" in msg or "unreachable" in msg:
+        friendly = f"{provider.title()}: Connection failed. Check your internet."
+    else:
+        # Truncate to first sentence or 120 chars
+        short = raw.split("\n")[0][:120]
+        friendly = f"{provider.title()}: {short}"
+
+    db.add_log("error", f"ai_engine/{provider}", friendly, detail)
+    return friendly
+
+
+def _get_config(provider_name: str | None = None, model_override: str | None = None) -> tuple[str, str, str]:
+    """Get AI config. Priority: DB provider → first enabled DB provider → .env fallback.
+    model_override takes precedence over the stored model."""
+    if provider_name:
+        row = db.get_ai_provider(provider_name)
+        if row and row["is_enabled"]:
+            model = model_override or row["model"]
+            return row["provider"], row["api_key"], model
+
+    # First enabled provider from DB
+    enabled = db.get_enabled_ai_providers()
+    if enabled:
+        row = enabled[0]
+        model = model_override or row["model"]
+        return row["provider"], row["api_key"], model
+
+    # Fallback to .env
     load_dotenv(override=True)
     provider = os.getenv("AI_PROVIDER", "").strip().lower()
     api_key = os.getenv("AI_API_KEY", "").strip()
-    model = os.getenv("AI_MODEL", "").strip()
+    model = model_override or os.getenv("AI_MODEL", "").strip()
     return provider, api_key, model
 
 
 def is_api_configured() -> bool:
     provider, api_key, _ = _get_config()
     return bool(provider and api_key)
+
+
+def _get_ordered_models(row: dict) -> list[str]:
+    """Get ordered model list for a provider row (saved model first, then cached)."""
+    cached = []
+    if row.get("models_cache"):
+        try:
+            cached = json.loads(row["models_cache"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    if not cached:
+        return [row["model"] or "default"]
+
+    saved_model = row["model"]
+    ordered = []
+    if saved_model in cached:
+        ordered.append(saved_model)
+    for m in cached:
+        if m != saved_model:
+            ordered.append(m)
+    return ordered
+
+
+def get_configured_providers() -> list[dict]:
+    """Return list of provider+model options for UI dropdowns."""
+    providers = []
+    for row in db.get_enabled_ai_providers():
+        for m in _get_ordered_models(row):
+            label = f"{row['provider'].title()} — {m}"
+            providers.append({"provider": row["provider"], "label": label, "model": m})
+
+    if not providers:
+        load_dotenv(override=True)
+        env_provider = os.getenv("AI_PROVIDER", "").strip().lower()
+        env_key = os.getenv("AI_API_KEY", "").strip()
+        env_model = os.getenv("AI_MODEL", "").strip()
+        if env_provider and env_key:
+            label = f"{env_provider.title()} — {env_model or 'default'} (env)"
+            providers.append({"provider": env_provider, "label": label, "model": env_model})
+
+    return providers
+
+
+def get_provider_model_options() -> dict[str, list[str]]:
+    """Return {provider_label: [models]} for enabled providers. Used for two-dropdown UI."""
+    result = {}
+    for row in db.get_enabled_ai_providers():
+        result[row["provider"].title()] = _get_ordered_models(row)
+
+    if not result:
+        load_dotenv(override=True)
+        env_provider = os.getenv("AI_PROVIDER", "").strip().lower()
+        env_key = os.getenv("AI_API_KEY", "").strip()
+        env_model = os.getenv("AI_MODEL", "").strip()
+        if env_provider and env_key:
+            result[f"{env_provider.title()} (env)"] = [env_model or "default"]
+
+    return result
+
+
+def list_models(provider: str, api_key: str) -> list[str]:
+    """List available models for a provider."""
+    try:
+        if provider == "claude":
+            from anthropic import Anthropic
+            client = Anthropic(api_key=api_key)
+            models = client.models.list()
+            return sorted([m.id for m in models.data if "claude" in m.id.lower()])
+        elif provider == "openai":
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            models = client.models.list()
+            return sorted([m.id for m in models.data if any(p in m.id for p in ("gpt", "o1", "o3", "o4"))])
+        elif provider == "gemini":
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            # The list endpoint returns all models, not just ones the key
+            # can use. Filter to main gemini text models only.
+            skip = ("tts", "image", "robotics", "computer-use", "customtools", "banana")
+            return sorted([
+                m.name.replace("models/", "")
+                for m in client.models.list()
+                if "generateContent" in (m.supported_actions or [])
+                and m.name.startswith("models/gemini")
+                and not any(s in m.name for s in skip)
+            ])
+    except Exception as e:
+        return [f"Error: {_friendly_error(e, provider)}"]
+    return []
+
+
+def test_connection(provider: str, api_key: str, model: str) -> tuple[bool, str]:
+    """Test API connection with a minimal request."""
+    try:
+        if provider == "claude":
+            from anthropic import Anthropic
+            client = Anthropic(api_key=api_key)
+            resp = client.messages.create(
+                model=model or "claude-sonnet-4-6",
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}],
+            )
+            return True, f"Connected — {resp.model}"
+        elif provider == "openai":
+            from openai import OpenAI
+            client = OpenAI(api_key=api_key)
+            resp = client.chat.completions.create(
+                model=model or "gpt-4o",
+                max_tokens=10,
+                messages=[{"role": "user", "content": "Hi"}],
+            )
+            return True, f"Connected — {resp.model}"
+        elif provider == "gemini":
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=api_key)
+            resp = client.models.generate_content(
+                model=model or "gemini-2.0-flash",
+                contents="Hi",
+                config=types.GenerateContentConfig(max_output_tokens=10),
+            )
+            return True, f"Connected — {model or 'gemini-2.0-flash'}"
+        else:
+            return False, f"Unknown provider: {provider}"
+    except Exception as e:
+        return False, _friendly_error(e, provider)
 
 
 def build_analysis_prompt(
@@ -156,27 +329,28 @@ Provide your complete analysis as JSON."""
     return system_prompt, user_prompt
 
 
-def call_ai_api(system_prompt: str, user_prompt: str) -> dict | None:
+def call_ai_api(system_prompt: str, user_prompt: str, provider_name: str | None = None, model_override: str | None = None) -> dict | None:
     """Call the configured AI API. Returns parsed JSON or None on failure."""
-    provider, api_key, _ = _get_config()
+    provider, api_key, model = _get_config(provider_name, model_override)
     if not (provider and api_key):
         return None
 
     try:
         if provider == "claude":
-            return _call_claude(system_prompt, user_prompt)
+            return _call_claude(system_prompt, user_prompt, api_key, model)
         elif provider == "openai":
-            return _call_openai(system_prompt, user_prompt)
+            return _call_openai(system_prompt, user_prompt, api_key, model)
+        elif provider == "gemini":
+            return _call_gemini(system_prompt, user_prompt, api_key, model)
         else:
             return {"error": f"Unknown AI provider: {provider}"}
     except Exception as e:
-        return {"error": str(e)}
+        return {"error": _friendly_error(e, provider)}
 
 
-def _call_claude(system_prompt: str, user_prompt: str) -> dict:
+def _call_claude(system_prompt: str, user_prompt: str, api_key: str, model: str) -> dict:
     from anthropic import Anthropic
 
-    _, api_key, model = _get_config()
     client = Anthropic(api_key=api_key)
     model = model or "claude-sonnet-4-6"
 
@@ -194,10 +368,9 @@ def _call_claude(system_prompt: str, user_prompt: str) -> dict:
     return _parse_json_response(text)
 
 
-def _call_openai(system_prompt: str, user_prompt: str) -> dict:
+def _call_openai(system_prompt: str, user_prompt: str, api_key: str, model: str) -> dict:
     from openai import OpenAI
 
-    _, api_key, model = _get_config()
     client = OpenAI(api_key=api_key)
     model = model or "gpt-4o"
 
@@ -213,6 +386,29 @@ def _call_openai(system_prompt: str, user_prompt: str) -> dict:
     text = response.choices[0].message.content
     if not text:
         return {"error": "Empty response from OpenAI API"}
+
+    return _parse_json_response(text)
+
+
+def _call_gemini(system_prompt: str, user_prompt: str, api_key: str, model: str) -> dict:
+    from google import genai
+    from google.genai import types
+
+    client = genai.Client(api_key=api_key)
+    model_name = model or "gemini-2.0-flash"
+
+    response = client.models.generate_content(
+        model=model_name,
+        contents=user_prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=4096,
+        ),
+    )
+
+    text = response.text
+    if not text:
+        return {"error": "Empty response from Gemini API"}
 
     return _parse_json_response(text)
 

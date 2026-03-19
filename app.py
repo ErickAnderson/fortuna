@@ -48,11 +48,27 @@ st.markdown("""
     /* Table styling */
     .stDataFrame { border-radius: 8px; }
 
-    /* Main content buttons — gold outline */
+    /* Prevent text overflow in markdown/analysis content */
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stExpander"] {
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
+    /* Main content buttons — gold outline, balanced sizing */
+    [data-testid="stMainBlockContainer"] .stButton {
+        display: flex;
+        justify-content: center;
+    }
     [data-testid="stMainBlockContainer"] .stButton > button {
         border: 1px solid #D4AF37;
         color: #D4AF37;
         background-color: transparent;
+        width: auto !important;
+        min-width: 7rem;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+        white-space: nowrap;
     }
     [data-testid="stMainBlockContainer"] .stButton > button:hover {
         background-color: #D4AF37;
@@ -105,7 +121,7 @@ st.markdown("""
 st.sidebar.markdown("# ⚜ Fortuna")
 st.sidebar.markdown("---")
 
-NAV_ITEMS = ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner"]
+NAV_ITEMS = ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner", "Settings", "Logs"]
 
 for item in NAV_ITEMS:
     is_active = st.session_state.current_page == item
@@ -136,3 +152,9 @@ elif page == "Dividends":
 elif page == "Planner":
     from views import planner
     planner.render()
+elif page == "Settings":
+    from views import settings
+    settings.render()
+elif page == "Logs":
+    from views import logs
+    logs.render()
