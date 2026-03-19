@@ -83,6 +83,22 @@ def build():
     for imp in hidden_imports:
         hidden_import_args.extend(["--hidden-import", imp])
 
+    # Modules to exclude — not used by Fortuna, saves ~90 MB
+    exclude_modules = [
+        "pyarrow",
+        "PIL",
+        "Pillow",
+        "matplotlib",
+        "scipy",
+        "tkinter",
+        "test",
+        "unittest",
+    ]
+
+    exclude_args = []
+    for mod in exclude_modules:
+        exclude_args.extend(["--exclude-module", mod])
+
     cmd = [
         sys.executable,
         "-m",
@@ -101,6 +117,7 @@ def build():
         "streamlit",
         *add_data_args,
         *hidden_import_args,
+        *exclude_args,
         os.path.join(PROJECT_ROOT, "scripts", "fortuna_launcher.py"),
     ]
 
