@@ -9,10 +9,19 @@ from contextlib import closing
 from datetime import datetime
 from dotenv import load_dotenv
 from cryptography.fernet import Fernet, InvalidToken
+import platformdirs
 
 load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", "fortuna.db")
+
+def _default_db_path() -> str:
+    """Return OS-standard app data path for the database file."""
+    data_dir = platformdirs.user_data_dir("Fortuna", "Fortuna")
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "fortuna.db")
+
+
+DB_PATH = os.getenv("DB_PATH", _default_db_path())
 
 
 def _get_fernet() -> Fernet:

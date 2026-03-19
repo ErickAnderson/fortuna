@@ -10,3 +10,11 @@ venv/
 dist/
 build/
 .DS_Store
+
+# Tauri
+src-tauri/target/
+src-tauri/binaries/
+node_modules/
+
+# PyInstaller
+*.spec
