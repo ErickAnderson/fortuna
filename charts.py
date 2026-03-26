@@ -2,7 +2,23 @@
 
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.io as pio
 from plotly.subplots import make_subplots
+from components.formatting import GOLD, GREEN, RED, WHITE, BORDER
+
+_FORTUNA_TEMPLATE = go.layout.Template(
+    layout=go.Layout(
+        paper_bgcolor="#0E1117",
+        plot_bgcolor="#0E1117",
+        font=dict(color=WHITE, family="sans-serif", size=12),
+        colorway=[GOLD, GREEN, RED, "#FFA726", "#42A5F5"],
+        xaxis=dict(gridcolor=BORDER, linecolor=BORDER, tickcolor=WHITE, showgrid=True),
+        yaxis=dict(gridcolor=BORDER, linecolor=BORDER, tickcolor=WHITE, showgrid=True),
+        legend=dict(bgcolor="rgba(0,0,0,0)", bordercolor=BORDER, font=dict(color=WHITE)),
+        title=dict(font=dict(color=GOLD)),
+    )
+)
+pio.templates["fortuna_theme"] = _FORTUNA_TEMPLATE
 
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -216,17 +232,12 @@ def create_candlestick_chart(df: pd.DataFrame, ticker: str) -> go.Figure:
         )
 
     fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="#0E1117",
-        plot_bgcolor="#0E1117",
-        font=dict(color="#FAFAFA"),
+        template="fortuna_theme",
         height=800,
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         xaxis_rangeslider_visible=False,
     )
-
-    fig.update_xaxes(gridcolor="#1A1D24")
-    fig.update_yaxes(gridcolor="#1A1D24")
+    fig.update_annotations(font_size=11, font_color="#AAAAAA")
 
     return fig
