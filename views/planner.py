@@ -5,6 +5,7 @@ import pandas as pd
 import database as db
 import market_data as md
 import services.planner as svc
+from components.formatting import DARK_CARD, BORDER, WHITE
 
 
 def render():
@@ -65,14 +66,35 @@ def render():
         })
 
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        row_height=32,
+        column_config={
+            "Suggested $": st.column_config.NumberColumn("Suggested $", format="$%,.2f"),
+            "Shares":       st.column_config.NumberColumn("Shares",      format="%d"),
+        },
+    )
 
     total_deployed = sum(s["actual_cost"] for s in suggestions)
     remaining = lump_sum - total_deployed
 
-    col1, col2 = st.columns(2)
-    col1.metric("Total Deployed", f"${total_deployed:,.2f}")
-    col2.metric("Remaining Cash", f"${remaining:,.2f}")
+    st.markdown(
+        f"""
+        <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-bottom:16px;">
+            <div style="background:{DARK_CARD}; border:1px solid {BORDER}; border-radius:8px; padding:14px 16px;">
+                <p class="fortuna-label">Total Deployed</p>
+                <p class="fortuna-value-primary">${total_deployed:,.2f}</p>
+            </div>
+            <div style="background:{DARK_CARD}; border:1px solid {BORDER}; border-radius:8px; padding:14px 16px;">
+                <p class="fortuna-label">Remaining Cash</p>
+                <p class="fortuna-value-primary">${remaining:,.2f}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if remaining > 0:
         st.info(f"${remaining:,.2f} remaining due to whole-share rounding. "
@@ -110,4 +132,4 @@ def render():
         })
 
     preview_df = pd.DataFrame(preview_rows)
-    st.dataframe(preview_df, use_container_width=True, hide_index=True)
+    st.dataframe(preview_df, use_container_width=True, hide_index=True, row_height=32)
