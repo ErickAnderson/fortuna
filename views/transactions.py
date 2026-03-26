@@ -72,17 +72,19 @@ def render():
         display_df.style.map(
             style_txn_type,
             subset=["Type"],
-        ).format({
-            "Qty": "{:,.0f}",
-            "Price": "${:,.2f}",
-            "Fee": "${:,.2f}",
-            "Total": "${:,.2f}",
-        }),
+        ),
         use_container_width=True,
         hide_index=True,
         on_select="rerun",
         selection_mode="single-row",
         key="txn_table",
+        row_height=32,
+        column_config={
+            "Qty":   st.column_config.NumberColumn("Qty",   format="%,.0f"),
+            "Price": st.column_config.NumberColumn("Price", format="$%,.2f"),
+            "Fee":   st.column_config.NumberColumn("Fee",   format="$%,.2f"),
+            "Total": st.column_config.NumberColumn("Total", format="$%,.2f"),
+        },
     )
 
     # Show actions for selected row
