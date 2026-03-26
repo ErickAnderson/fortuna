@@ -18,7 +18,7 @@ def build_portfolio_rows() -> tuple[list[dict], float, float, float]:
     if not portfolio:
         return [], 0.0, 0.0, 0.0
 
-    tickers = tuple(p["ticker"] for p in portfolio)  # tuple required for st.cache_data
+    tickers = tuple(p["ticker"] for p in portfolio)  # tuple required for Streamlit cache hashability
     prices = md.get_batch_prices(tickers)
 
     rows = []
