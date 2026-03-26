@@ -3,19 +3,7 @@
 import streamlit as st
 import pandas as pd
 import database as db
-import market_data as md
-
-
-def _get_first_transaction_date(ticker: str) -> pd.Timestamp | None:
-    """Get the earliest transaction date for a ticker."""
-    pos = db.get_position_by_ticker(ticker)
-    if not pos:
-        return None
-    txns = db.get_transactions(pos["id"])
-    if not txns:
-        return None
-    dates = [pd.Timestamp(t["date"]) for t in txns]
-    return min(dates)
+import services.dividends as svc
 
 
 def render():
@@ -31,61 +19,9 @@ def render():
         st.info("No holdings to show dividends for.")
         return
 
-    # Fetch dividend data for all positions
-    dividend_data = []
-    div_full_histories = {}   # Full history for chart display
-    div_owned_histories = {}  # Only since first transaction for calculations
-    total_dividends_received = 0.0
-
     with st.spinner("Fetching dividend data..."):
-        for pos in positions_with_qty:
-            ticker = pos["ticker"]
-            divs_df = md.get_dividends(ticker)
-            divs = divs_df["Dividend"] if not divs_df.empty else pd.Series(dtype=float)
-            div_yield = md.get_dividend_yield(ticker)
-
-            # Full history for chart
-            div_full_histories[ticker] = divs
-
-            # Filter to only dividends since first transaction (for portfolio value)
-            first_txn_date = _get_first_transaction_date(ticker)
-            if first_txn_date is not None and not divs.empty:
-                cutoff = first_txn_date
-                if divs.index.tz is not None:
-                    cutoff = cutoff.tz_localize(divs.index.tz)
-                owned_divs = divs[divs.index >= cutoff]
-            else:
-                owned_divs = divs
-
-            div_owned_histories[ticker] = owned_divs
-
-            # Total dividends received (only since ownership)
-            total_divs = owned_divs.sum() * pos["qty"] if not owned_divs.empty else 0.0
-            total_dividends_received += total_divs
-
-            # Latest dividend (from owned period)
-            latest_div = float(owned_divs.iloc[-1]) if not owned_divs.empty else 0.0
-            latest_date = str(owned_divs.index[-1].date()) if not owned_divs.empty else "N/A"
-
-            # Trailing 12-month dividends
-            if not divs.empty:
-                year_cutoff = pd.Timestamp.now(tz=divs.index.tz) - pd.DateOffset(years=1)
-                annual_div = float(divs[divs.index >= year_cutoff].sum())
-            else:
-                annual_div = 0.0
-
-            dividend_data.append({
-                "Ticker": ticker,
-                "Qty": pos["qty"],
-                "Div Yield %": f"{div_yield:.2f}%" if div_yield is not None else "N/A",
-                "Latest Div": f"${latest_div:.4f}",
-                "Latest Date": latest_date,
-                "Annual Div/Share": f"${annual_div:.4f}",
-                "Annual Income": f"${annual_div * pos['qty']:,.2f}",
-                "Total Received": f"${total_divs:,.2f}",
-                "_annual_income": annual_div * pos["qty"],
-                "_first_txn": first_txn_date,
-            })
+        dividend_data, div_full_histories, div_owned_histories, total_dividends_received = \
+            svc.build_dividend_summary(positions_with_qty)
 
     # Top metrics
     total_annual = sum(d["_annual_income"] for d in dividend_data)

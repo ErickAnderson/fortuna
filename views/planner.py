@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import database as db
 import market_data as md
+import services.planner as svc
 
 
 def render():
@@ -25,12 +26,9 @@ def render():
     with st.spinner("Fetching prices..."):
         prices = md.get_batch_prices(tickers)
 
-    # Current portfolio value
     for pos in portfolio:
         pos["current_price"] = prices.get(pos["ticker"])
         pos["value"] = (pos["current_price"] * pos["qty"]) if pos["current_price"] and pos["qty"] > 0 else 0.0
-
-    total_value = sum(p["value"] for p in portfolio)
 
     # Input: lump sum
     st.markdown("### How much do you want to invest?")
@@ -47,39 +45,7 @@ def render():
         st.info("Enter an amount above $0.")
         return
 
-    new_total = total_value + lump_sum
-
-    # Calculate suggested allocation to match target weights
-    suggestions = []
-    for pos in portfolio:
-        target_value = new_total * (pos["target_weight"] / 100)
-        current_value = pos["value"]
-        needed = max(target_value - current_value, 0)
-
-        # How many shares can that buy?
-        price = pos["current_price"]
-        shares = int(needed / price) if price and price > 0 else 0
-        actual_cost = shares * price if price else 0
-
-        suggestions.append({
-            "ticker": pos["ticker"],
-            "target_weight": pos["target_weight"],
-            "current_value": current_value,
-            "target_value": target_value,
-            "suggested_amount": round(needed, 2),
-            "suggested_shares": shares,
-            "actual_cost": round(actual_cost, 2),
-            "price": price,
-        })
-
-    # Normalize if total suggestions exceed lump sum
-    total_suggested = sum(s["suggested_amount"] for s in suggestions)
-    if total_suggested > 0:
-        scale = min(lump_sum / total_suggested, 1.0)
-        for s in suggestions:
-            s["suggested_amount"] = round(s["suggested_amount"] * scale, 2)
-            s["suggested_shares"] = int(s["suggested_amount"] / s["price"]) if s["price"] and s["price"] > 0 else 0
-            s["actual_cost"] = round(s["suggested_shares"] * s["price"], 2) if s["price"] else 0
+    suggestions, total_value = svc.calculate_deployment_plan(portfolio, lump_sum)
 
     st.markdown("---")
     st.markdown("### Suggested Allocation")
