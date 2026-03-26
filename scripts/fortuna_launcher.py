@@ -7,6 +7,21 @@ Tauri spawns this as a sidecar, passing a dynamically-chosen free port.
 
 import sys
 import os
+import threading
+
+
+def _pre_init_db() -> None:
+    """Run DB schema init in background while Streamlit server starts.
+
+    Safe to call before Streamlit's session threads exist. Uses only sqlite3
+    and stdlib — no Streamlit context required. app.py will call init_db()
+    again on first session load; CREATE TABLE IF NOT EXISTS is idempotent.
+    """
+    try:
+        import database as db
+        db.init_db()
+    except Exception:
+        pass  # app.py session guard will retry on first load
 
 
 def main():
@@ -28,6 +43,9 @@ def main():
         data_dir = platformdirs.user_data_dir("Fortuna", "Fortuna")
         os.makedirs(data_dir, exist_ok=True)
         os.environ["DB_PATH"] = os.path.join(data_dir, "fortuna.db")
+
+    # Pre-initialize DB schema concurrently with Streamlit server startup (D-05)
+    threading.Thread(target=_pre_init_db, daemon=True).start()
 
     # Start Streamlit programmatically
     from streamlit.web import cli as stcli
