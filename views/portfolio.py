@@ -5,6 +5,7 @@ import pandas as pd
 import database as db
 import services.portfolio as svc
 import components.metrics as metrics
+from components.formatting import GOLD
 from components.dataframes import style_pnl, style_weight_diff
 
 
@@ -76,7 +77,7 @@ def render():
             "Ticker": [r["ticker"] for r in rows],
             "Weight": [r["target_weight"] for r in rows],
         })
-        st.bar_chart(target_data.set_index("Ticker"), horizontal=True)
+        st.bar_chart(target_data.set_index("Ticker"), horizontal=True, color=GOLD)
 
     with col_actual:
         st.markdown("**Actual**")
@@ -84,7 +85,7 @@ def render():
             "Ticker": [r["ticker"] for r in rows],
             "Weight": [r["current_weight"] for r in rows],
         })
-        st.bar_chart(actual_data.set_index("Ticker"), horizontal=True)
+        st.bar_chart(actual_data.set_index("Ticker"), horizontal=True, color=GOLD)
 
     st.markdown("---")
 
