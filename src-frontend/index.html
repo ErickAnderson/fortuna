@@ -65,25 +65,36 @@
     </div>
 
     <script>
-        // Animated status text while Rust navigates the webview to Streamlit.
-        // The Rust backend handles health checking and navigation — this is
-        // purely cosmetic feedback for the user during the ~5-10s boot time.
-        const messages = ['Starting...', 'Loading portfolio data...', 'Almost ready...'];
-        let step = 0;
+        // Stage-aware status messages calibrated to real sidecar boot phases (D-02, D-03, D-06).
+        // Rust handles health checking and webview navigation — this is cosmetic feedback only.
+        // Observed boot stages: launch (~0-1.5s), server init (~1.5-4s), DB/Streamlit ready (~4-7s)
+        const messages = [
+            { text: 'Launching Fortuna...', duration: 1500 },
+            { text: 'Starting server...',   duration: 2500 },
+            { text: 'Loading portfolio...', duration: 2000 },
+            { text: 'Almost ready...',      duration: 99999 },  // holds until Rust navigates
+        ];
+        let idx = 0;
         const statusEl = document.getElementById('status');
+        let elapsed = 0;  // total ms shown so far, used for error fallback
 
-        const timer = setInterval(() => {
-            step++;
-            if (step < messages.length) {
-                statusEl.textContent = messages[step];
-            } else if (step > 50) {
-                // ~25s with no navigation — show warning
-                clearInterval(timer);
+        function showNext() {
+            if (idx >= messages.length) return;
+            statusEl.textContent = messages[idx].text;
+            const d = messages[idx].duration;
+            idx++;
+            elapsed += d;
+
+            // Error fallback: if still on splash after ~25s, show warning
+            if (elapsed >= 25000) {
                 document.getElementById('spinner').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
                 statusEl.textContent = '';
+                return;
             }
-        }, 500);
+            setTimeout(showNext, d);
+        }
+        showNext();
     </script>
 </body>
 </html>
