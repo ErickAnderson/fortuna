@@ -3,6 +3,8 @@
 import streamlit as st
 import database as db
 
+__version__ = "0.1.0"
+
 # Initialize database once per session
 if "db_initialized" not in st.session_state:
     db.init_db()
@@ -28,8 +30,10 @@ st.markdown("""
         cursor: pointer !important;
     }
 
-    /* Gold accent headers */
-    h1, h2, h3 { color: #D4AF37 !important; }
+    /* Gold accent headers — consistent hierarchy */
+    [data-testid="stMarkdownContainer"] h1 { color: #D4AF37 !important; font-size: 1.6rem !important; }
+    [data-testid="stMarkdownContainer"] h2 { color: #D4AF37 !important; font-size: 1.25rem !important; }
+    [data-testid="stMarkdownContainer"] h3 { color: #D4AF37 !important; font-size: 1.05rem !important; }
 
     /* Metric cards */
     [data-testid="stMetric"] {
@@ -113,6 +117,34 @@ st.markdown("""
         font-weight: 600 !important;
         opacity: 1 !important;
         cursor: default !important;
+    }
+
+    /* Monospace font for financial numbers in dataframe cells */
+    [data-testid="stDataFrame"] td {
+        font-family: "SF Mono", "Fira Code", "Courier New", monospace !important;
+        font-size: 0.82rem !important;
+    }
+
+    /* Metric card typography — label (muted) and value (prominent) */
+    .fortuna-label {
+        font-size: 0.8rem !important;
+        color: #888888 !important;
+        margin: 0 0 4px 0;
+        line-height: 1.2;
+    }
+    .fortuna-value-primary {
+        font-size: 1.75rem !important;
+        font-weight: 700 !important;
+        color: #FAFAFA !important;
+        margin: 0;
+        line-height: 1.2;
+    }
+    .fortuna-value-secondary {
+        font-size: 1.1rem !important;
+        font-weight: 600 !important;
+        color: #FAFAFA !important;
+        margin: 0;
+        line-height: 1.2;
     }
 </style>
 """, unsafe_allow_html=True)
