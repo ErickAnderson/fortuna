@@ -12,7 +12,7 @@ if "db_initialized" not in st.session_state:
 
 st.set_page_config(
     page_title="Fortuna",
-    page_icon="⚜",
+    page_icon=":chart_with_upwards_trend:",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -150,7 +150,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar navigation
-st.sidebar.markdown("# ⚜ Fortuna")
+st.sidebar.markdown("# Fortuna")
 st.sidebar.markdown("---")
 
 NAV_ITEMS = ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner", "Settings", "Logs"]
@@ -166,6 +166,12 @@ for item in NAV_ITEMS:
     if clicked:
         st.session_state.current_page = item
         st.rerun()
+
+st.sidebar.markdown("---")
+st.sidebar.markdown(
+    f'<div style="color:#555555; font-size:0.75rem; padding:4px 0;">Fortuna &nbsp;·&nbsp; v{__version__}</div>',
+    unsafe_allow_html=True,
+)
 
 page = st.session_state.current_page
 
