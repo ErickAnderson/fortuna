@@ -45,27 +45,33 @@ def render():
         "Value", "P&L %", "P&L $", "Fees", "Div Yield %",
     ]
 
-    # Style the dataframe
+    # Style the dataframe (color maps only — number formatting via column_config)
     styled = display_df.style.map(
         style_pnl, subset=["P&L %", "P&L $"]
     ).map(
         style_weight_diff, subset=["Diff %"]
-    ).format({
-        "Target %": "{:.1f}%",
-        "Current %": "{:.1f}%",
-        "Diff %": "{:+.1f}%",
-        "Qty": "{:.0f}",
-        "Avg Price": "${:,.2f}",
-        "Price": lambda x: f"${x:,.2f}" if x is not None else "N/A",
-        "Cost": "${:,.2f}",
-        "Value": "${:,.2f}",
-        "P&L %": "{:+.2f}%",
-        "P&L $": "${:+,.2f}",
-        "Fees": "${:,.2f}",
-        "Div Yield %": lambda x: f"{x:.2f}%" if x is not None else "N/A",
-    })
+    )
 
-    st.dataframe(styled, use_container_width=True, hide_index=True)
+    st.dataframe(
+        styled,
+        use_container_width=True,
+        hide_index=True,
+        row_height=32,
+        column_config={
+            "Target %":    st.column_config.NumberColumn("Target %",    format="%.1f%%"),
+            "Current %":   st.column_config.NumberColumn("Current %",   format="%.1f%%"),
+            "Diff %":      st.column_config.NumberColumn("Diff %",      format="%+.1f%%"),
+            "Qty":         st.column_config.NumberColumn("Qty",         format="%.0f"),
+            "Avg Price":   st.column_config.NumberColumn("Avg Price",   format="$%.2f"),
+            "Price":       st.column_config.NumberColumn("Price",       format="$%.2f"),
+            "Cost":        st.column_config.NumberColumn("Cost",        format="$%,.2f"),
+            "Value":       st.column_config.NumberColumn("Value",       format="$%,.2f"),
+            "P&L %":       st.column_config.NumberColumn("P&L %",       format="%+.2f%%"),
+            "P&L $":       st.column_config.NumberColumn("P&L $",       format="$%+,.2f"),
+            "Fees":        st.column_config.NumberColumn("Fees",        format="$%,.2f"),
+            "Div Yield %": st.column_config.NumberColumn("Div Yield %", format="%.2f%%"),
+        },
+    )
 
     # Allocation chart
     st.markdown("### Allocation")
