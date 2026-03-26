@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import database as db
 import services.dividends as svc
+from components.formatting import DARK_CARD, BORDER, WHITE
 
 
 def render():
@@ -28,10 +29,25 @@ def render():
     total_invested = sum(p["total_cost"] for p in positions_with_qty)
     portfolio_yield = (total_annual / total_invested * 100) if total_invested > 0 else 0.0
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Annual Dividend Income", f"${total_annual:,.2f}")
-    col2.metric("Portfolio Yield", f"{portfolio_yield:.2f}%")
-    col3.metric("Total Dividends Received", f"${total_dividends_received:,.2f}")
+    st.markdown(
+        f"""
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;">
+            <div style="background:{DARK_CARD}; border:1px solid {BORDER}; border-radius:8px; padding:14px 16px;">
+                <p class="fortuna-label">Annual Dividend Income</p>
+                <p class="fortuna-value-primary">${total_annual:,.2f}</p>
+            </div>
+            <div style="background:{DARK_CARD}; border:1px solid {BORDER}; border-radius:8px; padding:14px 16px;">
+                <p class="fortuna-label">Portfolio Yield</p>
+                <p class="fortuna-value-primary">{portfolio_yield:.2f}%</p>
+            </div>
+            <div style="background:{DARK_CARD}; border:1px solid {BORDER}; border-radius:8px; padding:14px 16px;">
+                <p class="fortuna-label">Total Dividends Received</p>
+                <p class="fortuna-value-primary">${total_dividends_received:,.2f}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     st.markdown("---")
 
@@ -40,7 +56,20 @@ def render():
     display_cols = ["Ticker", "Qty", "Div Yield %", "Latest Div", "Latest Date",
                     "Annual Div/Share", "Annual Income", "Total Received"]
     df = pd.DataFrame(dividend_data)[display_cols]
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True,
+        row_height=32,
+        column_config={
+            "Qty":             st.column_config.NumberColumn("Qty",              format="%d"),
+            "Div Yield %":     st.column_config.NumberColumn("Div Yield %",      format="%.2f%%"),
+            "Latest Div":      st.column_config.NumberColumn("Latest Div",       format="$%.4f"),
+            "Annual Div/Share":st.column_config.NumberColumn("Annual Div/Share", format="$%.4f"),
+            "Annual Income":   st.column_config.NumberColumn("Annual Income",    format="$%,.2f"),
+            "Total Received":  st.column_config.NumberColumn("Total Received",   format="$%,.2f"),
+        },
+    )
 
     st.markdown("---")
 
