@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import date, datetime
 import database as db
 import market_data as md
+from components.dataframes import style_txn_type
 
 
 def render():
@@ -69,7 +70,7 @@ def render():
     # Selectable dataframe
     event = st.dataframe(
         display_df.style.map(
-            lambda val: "color: #00C853" if val == "buy" else ("color: #FF5252" if val == "sell" else ""),
+            style_txn_type,
             subset=["Type"],
         ).format({
             "Qty": "{:,.0f}",

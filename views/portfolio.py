@@ -3,90 +3,30 @@
 import streamlit as st
 import pandas as pd
 import database as db
-import market_data as md
+import services.portfolio as svc
+import components.metrics as metrics
+from components.dataframes import style_pnl, style_weight_diff
 
 
 def render():
     st.markdown("# Portfolio")
 
-    portfolio = db.get_portfolio_summary()
+    rows, total_cost, total_value, total_fees = svc.build_portfolio_rows()
 
-    if not portfolio:
+    if not rows:
         st.info("No positions yet. Add tickers below to get started.")
         _render_add_position()
         return
 
     # Warn on negative quantities
-    for pos in portfolio:
-        if pos["qty"] < 0:
-            st.warning(f"{pos['ticker']} has negative qty ({pos['qty']}). Check transactions.")
-
-    # Fetch live prices (tuple for caching)
-    tickers = tuple(p["ticker"] for p in portfolio)
-    with st.spinner("Fetching live prices..."):
-        prices = md.get_batch_prices(tickers)
-
-    # Build portfolio table data
-    rows = []
-    total_cost = 0.0
-    total_value = 0.0
-    total_fees = 0.0
-
-    for pos in portfolio:
-        current_price = prices.get(pos["ticker"])
-        value = (current_price * pos["qty"]) if current_price and pos["qty"] > 0 else 0.0
-        total_cost += pos["total_cost"]
-        total_value += value
-        total_fees += pos["total_fees"]
-
-        rows.append({
-            **pos,
-            "current_price": current_price,
-            "value": round(value, 2),
-        })
-
-    # Calculate weights and P&L
     for row in rows:
-        row["current_weight"] = round((row["value"] / total_value * 100), 2) if total_value > 0 else 0.0
-        row["pnl_dollar"] = round(row["value"] - row["total_cost"], 2)
-        row["pnl_pct"] = round((row["pnl_dollar"] / row["total_cost"] * 100), 2) if row["total_cost"] > 0 else 0.0
-        row["weight_diff"] = round(row["current_weight"] - row["target_weight"], 2)
-        row["div_yield"] = md.get_dividend_yield(row["ticker"])
+        if row["qty"] < 0:
+            st.warning(f"{row['ticker']} has negative qty ({row['qty']}). Check transactions.")
 
     # Top-level metrics
     total_pnl = total_value - total_cost
     total_pnl_pct = (total_pnl / total_cost * 100) if total_cost > 0 else 0.0
-
-    pnl_color = "#00C853" if total_pnl >= 0 else "#FF5252"
-    pnl_bg = "rgba(0,200,83,0.15)" if total_pnl >= 0 else "rgba(255,82,82,0.15)"
-    pnl_arrow = "▲" if total_pnl >= 0 else "▼"
-
-    st.markdown(f"""
-    <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:12px;">
-        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
-            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Total Invested</p>
-            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">${total_cost:,.2f}</p>
-        </div>
-        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
-            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Current Value</p>
-            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">${total_value:,.2f}</p>
-        </div>
-        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
-            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Total P&L</p>
-            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">
-                ${total_pnl:,.2f}
-                <span style="font-size:0.8rem; padding:2px 8px; border-radius:12px;
-                    color:{pnl_color}; background:{pnl_bg}; margin-left:6px; vertical-align:middle;">
-                    {pnl_arrow} {total_pnl_pct:+.2f}%
-                </span>
-            </p>
-        </div>
-        <div style="background:#1A1D24; border:1px solid #2A2D34; border-radius:8px; padding:14px 16px;">
-            <p style="font-size:0.85rem; color:#AAAAAA; margin:0 0 6px 0;">Total Fees</p>
-            <p style="font-size:1.75rem; font-weight:700; margin:0; color:#FAFAFA;">${total_fees:,.2f}</p>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    metrics.render_portfolio_summary(total_cost, total_value, total_pnl, total_pnl_pct, total_fees)
 
     st.markdown("---")
 
@@ -105,22 +45,6 @@ def render():
     ]
 
     # Style the dataframe
-    def style_pnl(val):
-        if isinstance(val, (int, float)):
-            if val > 0:
-                return "color: #00C853"
-            elif val < 0:
-                return "color: #FF5252"
-        return ""
-
-    def style_weight_diff(val):
-        if isinstance(val, (int, float)):
-            if val > 2:
-                return "color: #FF5252"  # Overweight
-            elif val < -2:
-                return "color: #FFA726"  # Underweight
-        return ""
-
     styled = display_df.style.map(
         style_pnl, subset=["P&L %", "P&L $"]
     ).map(
