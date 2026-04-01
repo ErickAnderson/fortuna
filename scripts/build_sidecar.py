@@ -113,6 +113,11 @@ def build():
         os.path.join(PROJECT_ROOT, "build", "pyinstaller"),
         "--specpath",
         os.path.join(PROJECT_ROOT, "build"),
+        # Fix importlib.metadata discovery for Python 3.14 frozen bundles.
+        # Flushes stale FastPath/Lookup caches so dist-info dirs inside _internal/
+        # are visible to importlib.metadata.version() at package import time.
+        "--runtime-hook",
+        os.path.join(PROJECT_ROOT, "scripts", "pyi_rth_metadata_fix.py"),
         "--collect-all",
         "streamlit",
         *add_data_args,
