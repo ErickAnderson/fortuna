@@ -34,10 +34,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": {
-      "binaries/fortuna-server-*": "binaries/",
-      "binaries/_internal/**/*": "binaries/_internal/"
-    },
+    "resources": [
+      "binaries/"
+    ],
     "macOS": {
       "entitlements": "./entitlements.plist",
       "signingIdentity": null,

@@ -1,5 +1,8 @@
 """Fortuna — Personal ASX Portfolio Tracker."""
 
+import os
+import sys
+
 import streamlit as st
 import database as db
 
@@ -151,7 +154,8 @@ st.markdown("""
 
 # Sidebar navigation
 import base64 as _b64
-with open("assets/logo-cropped.png", "rb") as _f:
+_base_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+with open(os.path.join(_base_dir, "assets", "logo-cropped.png"), "rb") as _f:
     _logo_b64 = _b64.b64encode(_f.read()).decode()
 st.sidebar.markdown(
     f'<div style="text-align:center;padding:0.5rem 0;"><img src="data:image/png;base64,{_logo_b64}" width="150" /></div>',
