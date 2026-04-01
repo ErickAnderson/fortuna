@@ -17,16 +17,11 @@
             flex-direction: column;
         }
         .logo {
-            font-size: 3rem;
             margin-bottom: 0.5rem;
-            color: #D4AF37;
         }
-        h1 {
-            font-size: 1.8rem;
-            font-weight: 300;
-            color: #D4AF37;
-            margin-bottom: 2rem;
-            letter-spacing: 0.1em;
+        .logo img {
+            width: 120px;
+            height: 120px;
         }
         .spinner {
             width: 40px;
@@ -55,8 +50,7 @@
     </style>
 </head>
 <body>
-    <div class="logo">&#9884;</div>
-    <h1>Fortuna</h1>
+    <div class="logo"><img src="logo.png" alt="Fortuna" /></div>
     <div class="spinner" id="spinner"></div>
     <div class="status" id="status">Starting...</div>
     <div class="error" id="error">

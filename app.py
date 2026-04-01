@@ -150,7 +150,13 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar navigation
-st.sidebar.markdown("# Fortuna")
+import base64 as _b64
+with open("assets/logo-cropped.png", "rb") as _f:
+    _logo_b64 = _b64.b64encode(_f.read()).decode()
+st.sidebar.markdown(
+    f'<div style="text-align:center;padding:0.5rem 0;"><img src="data:image/png;base64,{_logo_b64}" width="150" /></div>',
+    unsafe_allow_html=True,
+)
 st.sidebar.markdown("---")
 
 NAV_ITEMS = ["Portfolio", "Transactions", "Analysis", "Dividends", "Planner", "Settings", "Logs"]

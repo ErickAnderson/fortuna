@@ -52,6 +52,7 @@ def build():
         (os.path.join(PROJECT_ROOT, "market_data.py"), "."),
         (os.path.join(PROJECT_ROOT, "charts.py"), "."),
         (os.path.join(PROJECT_ROOT, "views"), "views"),
+        (os.path.join(PROJECT_ROOT, "assets"), "assets"),
         (os.path.join(PROJECT_ROOT, ".streamlit", "config.toml"), ".streamlit"),
     ]
 
@@ -84,8 +85,8 @@ def build():
         hidden_import_args.extend(["--hidden-import", imp])
 
     # Modules to exclude — not used by Fortuna, saves ~90 MB
+    # Note: pyarrow is required by st.dataframe() — do NOT exclude it
     exclude_modules = [
-        "pyarrow",
         "PIL",
         "Pillow",
         "matplotlib",
