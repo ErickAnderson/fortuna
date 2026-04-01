@@ -2,8 +2,6 @@
   <img src="src-frontend/logo.png" alt="Fortuna" width="180" />
 </p>
 
-<h1 align="center">Fortuna</h1>
-
 <p align="center">
   A personal ASX portfolio tracker desktop app with AI-powered stock analysis, technical charting, dividend tracking, and rebalancing.
 </p>
@@ -167,9 +165,3 @@ fortuna/
 | Charts | Plotly with custom `fortuna_theme` template |
 | Bundler | PyInstaller (onedir mode) |
 | Installers | DMG (macOS), NSIS (Windows) |
-
-## License
-
-MIT License -- Copyright (c) 2026 Erick
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files, to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, subject to the conditions of the [MIT License](https://opensource.org/licenses/MIT).
